@@ -1,0 +1,297 @@
+---
+title: "Clase 2. Ejercicios"
+subtitle: "Datos ordenados y manipulación"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+Mismo mecanismo que la clase anterior: escribís en el primer bloque, corrés el segundo sin tocarlo.
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(janitor)
+library(lubridate)
+library(stringr)
+source("chequear.R")
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 1. Filtrar filas
+
+¿Cuántos pingüinos de la especie Gentoo hay? Guardalo en `n_gentoo`.
+
+Escribilo con el pipe, aunque sea una sola operación. Vale la pena agarrar el hábito ahora que es fácil.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_gentoo", 124)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 2. Dos condiciones
+
+¿Cuántos pingüinos Adelie pesan más de 4000 gramos? Guardalo en `n_adelie_pesados`.
+
+Dentro de `filter()`, separar dos condiciones con coma significa "y". También podés usar `&`, que es lo mismo.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_adelie_pesados", 35)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 3. Ordenar y quedarse con el primero
+
+Encontrá el largo de pico más grande de toda la tabla y guardalo en `pico_max`.
+
+Hay dos caminos. Uno es ordenar de mayor a menor con `arrange(desc(...))` y quedarte con la primera fila usando `slice(1)`. El otro es una sola función que ya conocés de la clase pasada. Los dos sirven.
+
+Cuidado con los faltantes: `arrange()` manda los `NA` al final siempre, ordenes como ordenes, así que ese camino anda. El otro necesita que te acuerdes de algo.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("pico_max", 59.6)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 4. Crear una columna
+
+Creá una columna nueva con la masa dividida por el largo de la aleta, y guardá su media en `ratio_medio`.
+
+Las columnas son `body_mass_g` y `flipper_length_mm`.
+
+Un detalle que conviene comprobar: después de hacer el `mutate()`, imprimí `penguins` y fijate si la columna nueva está ahí.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("ratio_medio", 20.7770051388935)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 5. Resumir por grupo
+
+Calculá la masa media de cada especie. De esa tabla, guardá en `masa_gentoo` el valor que corresponde a los Gentoo.
+
+Acordate de reportar también el `n` de cada grupo cuando hagas esto con datos reales. Una media sin su `n` no se puede interpretar.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("masa_gentoo", 5076.0162601626)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 6. Contar
+
+¿Cuántos pingüinos hay en la isla Biscoe? Guardalo en `n_biscoe`.
+
+Se puede con `count()`, que es el atajo, o con `group_by()` más `summarise(n = n())`. Hacelo de las dos formas y compará.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_biscoe", 168)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 7. De ancho a largo
+
+Esta tabla tiene el peso de tres pacientes en tres visitas, con una columna por visita.
+
+```{r}
+visitas <- tibble(
+  paciente = c("P1", "P2", "P3"),
+  peso_v1  = c(72, 68, 81),
+  peso_v2  = c(71, 69, 79),
+  peso_v3  = c(70, 70, 78)
+)
+visitas
+```
+
+Es cómoda de leer y es inservible para graficar. ggplot necesita una columna que diga "qué visita" y otra que diga "cuánto pesaba".
+
+Pasala a formato largo con `pivot_longer()` y guardá el resultado en `visitas_largo`. Después guardá la cantidad de filas en `n_filas_largo`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_filas_largo", 9)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 8. Unir dos tablas
+
+Cuatro pacientes, y resultados de laboratorio para algunos de ellos.
+
+```{r}
+pacientes <- tibble(id = c("P1", "P2", "P3", "P4"), edad = c(54, 61, 47, 73))
+labs      <- tibble(id = c("P1", "P2", "P5"), glucemia = c(98, 112, 105))
+```
+
+Pegale a `pacientes` su glucemia con `left_join()`, y guardá en `n_sin_lab` cuántos pacientes quedaron sin resultado.
+
+Después usá `anti_join()` para quedarte con los pacientes que no tienen laboratorio, y guardá esa cantidad en `n_anti`.
+
+Fijate que `anti_join()` te da la misma respuesta sin que tengas que contar `NA`. Es la herramienta que vas a usar para auditar cualquier unión de tablas.
+
+Pregunta para pensar, no se corrige: ¿qué pasó con P5?
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_sin_lab", 2)
+chequear("n_anti", 2)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 9. Una planilla de verdad
+
+En `datos/cohorte-sucia.csv` hay treinta filas de una cohorte, cargadas por varias personas distintas a lo largo de un mes. Se nota.
+
+Importala con `read_csv()` y guardala en `cruda`. Mirá los nombres de las columnas con `names(cruda)` antes de seguir.
+
+```{r}
+# Tu respuesta:
+
+```
+
+Ahora pasale `clean_names()` de janitor y guardá el resultado en `limpia`. Guardá en `nombre_tercero` el nombre de la tercera columna de `limpia`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("nombre_tercero", "edad")
+```
+
+Mirá también cómo quedó la columna de glucemia. `clean_names()` hace mucho pero no lee la mente, y conviene revisar siempre qué nombres devolvió.
+
+------------------------------------------------------------------------
+
+## Ejercicio 10. Unificar una categoría
+
+La columna `sexo` está cargada de diez maneras distintas: `F`, `f`, `Fem`, `Femenino`, `femenino`, `M`, `m`, `Masc`, `Masculino`, `masculino`.
+
+Creá una columna `sexo_ok` que tenga solamente `"femenino"` o `"masculino"`, y guardá en `n_femenino` cuántas mujeres hay.
+
+La herramienta es `case_when()`. Una estrategia que funciona: pasar todo a minúscula con `str_to_lower()` y mirar la primera letra con `str_sub()`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_femenino", 15)
+```
+
+Antes de seguir, corré `table(limpia$sexo)` y contá a mano que las categorías suman treinta. Si tu `case_when()` se olvidó de un caso, esa fila queda en `NA` y no te vas a enterar salvo que mires.
+
+------------------------------------------------------------------------
+
+## Ejercicio 11. Fechas en tres formatos
+
+La columna de fecha viene en formato ISO (`2026-03-02`), con barras (`15/03/2026`) y con guiones (`22-03-2026`). Más una fila que directamente no es una fecha.
+
+Convertila con `parse_date_time()` de lubridate, pasándole los órdenes posibles en el argumento `orders`. Guardá en `n_fechas_na` cuántas no se pudieron convertir.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_fechas_na", 1)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 12. Duplicados
+
+Guardá en `n_ids_repetidos` cuántos IDs de paciente aparecen más de una vez.
+
+Después mirá esas filas con `get_dupes(limpia, id_paciente)` de janitor, y respondé para vos: ¿son el mismo error las dos?
+
+No lo son, y esa es la razón por la que los duplicados se miran antes de borrarlos. Una de las dos repeticiones es un error de carga. La otra es una consulta real.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_ids_repetidos", 2)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 13. Valores imposibles
+
+Contá cuántas filas tienen una edad imposible para esta cohorte de adultos, o sea menor a 18 o mayor a 110. Guardalo en `n_edades_malas`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_edades_malas", 3)
+```
+
+Son tres filas y dos errores distintos. Si no te cierra el número, volvé al ejercicio 12.
+
+------------------------------------------------------------------------
+
+## Si te sobró tiempo
+
+1. Armá una sola cadena de pipes que vaya del `read_csv()` a la tabla limpia, sin objetos intermedios. ¿Se lee mejor o peor que en pasos?
+2. La columna de glucemia tiene un `N/D`. Arreglala desde el `read_csv()` con el argumento `na`, como viste en la clase 1.
+3. Después de limpiar, ¿cuál es la presión sistólica media por grupo? ¿Y cuántas observaciones hay detrás de cada media?
+4. A P006 le falta la presión, pero `filter(limpia, presion_sistolica == NA)` no devuelve nada. ¿Por qué? ¿Cuál es la forma correcta?

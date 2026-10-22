@@ -1,0 +1,331 @@
+---
+title: "Clase 6. Ejercicios"
+subtitle: "Ensayos clínicos y protocolo reproducible"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(dplyr)
+library(pwr)
+source("chequear.R")
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 1. Randomización simple
+
+Asigná 20 pacientes a dos grupos tirando una moneda para cada uno.
+
+```{r}
+set.seed(99)
+simple <- sample(c("A", "B"), 20, replace = TRUE)
+simple
+```
+
+Guardá cuántos quedaron en cada grupo, en `n_a` y `n_b`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_a", 6)
+chequear("n_b", 14)
+```
+
+Seis contra catorce. Es lo que pasa cuando asignás cada paciente de forma
+independiente. Con 20 pacientes, un desbalance así es perfectamente
+posible.
+
+Y los ensayos reclutan de a poco. Si el estudio para antes de tiempo, o si hay un análisis
+intermedio, el desbalance está ahí.
+
+------------------------------------------------------------------------
+
+## Ejercicio 2. Al menos grupos iguales
+
+Una forma de garantizar grupos del mismo tamaño es armar la lista completa y barajarla.
+
+```{r}
+set.seed(100)
+permutada <- sample(rep(c("A", "B"), length.out = 40))
+```
+
+Guardá en `n_a_perm` cuántos quedaron en A.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_a_perm", 20)
+```
+
+Veinte y veinte, garantizado. Pero mirá los primeros diez:
+
+```{r}
+permutada[1:10]
+table(permutada[1:10])
+```
+
+Al final están balanceados. En el medio del reclutamiento, no necesariamente.
+
+------------------------------------------------------------------------
+
+## Ejercicio 3. Randomización en bloques
+
+Los bloques resuelven eso. Se arman grupos de tamaño fijo, cada uno con la misma cantidad
+de A y de B, y se baraja dentro de cada bloque.
+
+Completá la función. Tiene que generar `ceiling(n / tam)` bloques, cada uno con `tam/2`
+letras de cada tratamiento, barajado, y después quedarse con los primeros `n`.
+
+```{r}
+bloques <- function(n, tam = 4, seed = 2026) {
+  set.seed(seed)
+  k <- ceiling(n / tam)
+  # Completá:
+  # unlist(lapply(seq_len(k), function(i) ... )) [1:n]
+}
+```
+
+Guardá en `asignacion` el resultado para 40 pacientes, y en `balance_10` cuántos A hay
+entre los primeros diez.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("balance_10", 5)
+```
+
+Cinco y cinco a los diez pacientes. En cada múltiplo del tamaño de bloque, a los 8, a los
+12, a los 20, el balance es exacto, y entre uno y otro la diferencia nunca pasa de dos.
+
+Ese es el punto: el balance se mantiene **durante** el reclutamiento.
+
+------------------------------------------------------------------------
+
+## Ejercicio 4. Tamaño de muestra con fórmula
+
+Querés detectar un efecto de 0,5 desvíos estándar, con 5 % de significación y 80 % de
+potencia, comparando dos grupos independientes.
+
+Guardá en `n_por_grupo` el número de pacientes **por grupo**, redondeado hacia arriba.
+
+La función es `pwr.t.test()`. El tamaño del efecto se pasa en `d`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_por_grupo", 64)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 5. Qué pasa si el efecto es más chico
+
+Repetí el cálculo con un efecto de 0,3 en lugar de 0,5. Guardalo en `n_efecto_chico`.
+
+Después, con el efecto original de 0,5 pero exigiendo 90 % de potencia. Guardalo en
+`n_potencia_alta`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_efecto_chico", 176)
+chequear("n_potencia_alta", 86)
+```
+
+De 64 a 176 por bajar el efecto de 0,5 a 0,3. Casi el triple de pacientes para un efecto
+que es el 60 % del original: el n crece con el cuadrado, y (0,5 / 0,3)² da 2,8.
+
+Por eso el número que más determina el costo de un ensayo es cuánto efecto esperás, y eso
+sale de la literatura o del criterio clínico.
+
+------------------------------------------------------------------------
+
+## Ejercicio 6. La misma cuenta por simulación
+
+Las fórmulas existen para diseños simples. En cuanto hay medidas repetidas, abandono
+previsto o un desenlace raro, no hay fórmula y se simula.
+
+La idea: generás muchos estudios bajo el efecto que suponés, corrés el análisis en cada
+uno, y contás en qué proporción da significativo. Esa proporción **es** la potencia.
+
+Completá la función:
+
+```{r}
+potencia_sim <- function(n, delta, sd = 1, reps = 2000, seed = 7) {
+  set.seed(seed)
+  mean(replicate(reps, {
+    a <- rnorm(n, 0, sd)
+    b <- rnorm(n, delta, sd)
+    # Completá: ¿el test da significativo?
+  }))
+}
+```
+
+Guardá en `pot_64` la potencia para n = 64 por grupo y delta = 0,5.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("pot_64", 0.789)
+```
+
+La fórmula del ejercicio 4 dijo que con n = 64 tenés 80 % de potencia. La simulación da
+78,9 %.
+
+Coinciden, y eso valida las dos cosas a la vez. Cuando no haya fórmula, vas a poder
+confiar en la simulación porque la probaste donde sí había con qué comparar.
+
+------------------------------------------------------------------------
+
+## Ejercicio 7. Más potencia, menos efecto
+
+Con la misma función, calculá la potencia para n = 100 con delta = 0,5, y para n = 64 con
+delta = 0,3.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("pot_100", 0.9455)
+chequear("pot_64_chico", 0.388)
+```
+
+Con el efecto chico y 64 pacientes por grupo, la potencia es del 39 %. O sea que si el
+efecto existe, tenés más probabilidad de no detectarlo que de detectarlo.
+
+Un estudio así, si da no significativo, no permite concluir nada.
+
+------------------------------------------------------------------------
+
+## Ejercicio 8. Intención de tratar
+
+Acá hay un ensayo simulado. El tratamiento funciona, pero los pacientes con peor
+pronóstico lo abandonan.
+
+```{r}
+set.seed(42)
+n <- 200
+grupo      <- rep(c("control", "tratado"), each = n / 2)
+pronostico <- rnorm(n)
+adhiere    <- ifelse(grupo == "tratado", pronostico > -0.5, TRUE)
+desenlace  <- pronostico + ifelse(grupo == "tratado" & adhiere, 0.6, 0)
+
+ensayo <- data.frame(grupo, adhiere, desenlace)
+table(ensayo$grupo, ensayo$adhiere)
+```
+
+Guardá en `n_abandonos` cuántos abandonaron el tratamiento.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_abandonos", 29)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 9. Los dos análisis
+
+Compará la media del desenlace entre grupos de dos formas.
+
+**Por intención de tratar:** todos los pacientes, en el grupo al que fueron asignados,
+hayan cumplido o no.
+
+**Por protocolo:** solo los que adhirieron.
+
+Guardá las dos diferencias de medias en `dif_itt` y `dif_pp`, redondeadas a cuatro
+decimales. Calculalas como control menos tratado, que es el orden en que las devuelve
+`t.test()`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("dif_itt", -0.306)
+chequear("dif_pp", -0.9029)
+```
+
+El efecto real que metimos en la simulación es 0,6.
+
+La intención de tratar da 0,31, la mitad. El análisis por protocolo da 0,90, una vez y
+media.
+
+Ninguno de los dos "acierta", y por eso el ejercicio es interesante. ITT **diluye**,
+porque incluye a gente que no recibió el tratamiento. Por protocolo **exagera**, porque
+sacó del grupo tratado justamente a los que peor estaban, y eso rompe la aleatorización.
+
+En un ensayo de superioridad, ITT es el análisis principal porque conserva lo único que
+garantizaba comparabilidad entre los grupos.
+
+------------------------------------------------------------------------
+
+## Ejercicio 10. Lo que se reporta
+
+Corré el análisis por intención de tratar completo y guardá los extremos del intervalo de
+confianza en `itt_ic_bajo` e `itt_ic_alto`, redondeados a cuatro decimales.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("itt_ic_bajo", -0.6077)
+chequear("itt_ic_alto", -0.0043)
+```
+
+El p da 0,047 y el intervalo va de 0,004 a 0,608. Apenas excluye al cero.
+
+Un resultado así, en un ensayo real, se reporta diciendo el efecto y el intervalo, no
+diciendo "significativo". Porque fijate qué contiene ese intervalo: por abajo, un efecto
+de 0,004 desvíos, que es indistinguible de nada. Por arriba, 0,6 desvíos, que sería
+importante.
+
+Con estos datos no podés distinguir entre esas dos situaciones. El p valor de 0,047 no te
+dice eso, y el intervalo sí.
+
+------------------------------------------------------------------------
+
+## Si te sobró tiempo
+
+1. En el ejercicio 1, probá diez semillas distintas y mirá cuán desbalanceado puede
+   quedar. ¿Cuál es el peor caso que encontraste?
+2. Cambiá el tamaño de bloque del ejercicio 3 a 2 y a 10. ¿Qué gana y qué pierde cada uno?
+   Pensá en alguien que recluta pacientes y quiere adivinar la próxima asignación.
+3. Modificá la simulación del ejercicio 6 para que un 15 % de los pacientes abandone y
+   sus datos se pierdan. ¿Cuánta potencia perdés? ¿Cuántos pacientes más necesitarías?
+4. Armá la tabla 1 del ensayo con `gtsummary`, **sin** `add_p()`. Después agregalo y
+   preguntate qué hipótesis estarías testeando.
+5. Tomá cualquier análisis que hayas hecho en el curso y pasalo a un documento Quarto con
+   texto alrededor. Cambiá un dato de entrada y volvé a renderizar.

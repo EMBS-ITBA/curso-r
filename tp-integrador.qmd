@@ -1,0 +1,292 @@
+---
+title: "Trabajo integrador"
+subtitle: "Un ensayo clínico de punta a punta"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+## Antes de empezar
+
+Este trabajo es parte del certificado, junto con las ejercitaciones de los seis módulos. Se entrega el HTML: al final del cuaderno está cómo.
+
+Se trabaja igual que en los cuadernos de cada clase. Escribís en el bloque que dice `# Tu respuesta:` y corrés el de abajo, que te dice si te dio bien. Hay dos diferencias:
+
+- Los números no hace falta redondearlos. El chequeo lo hace solo.
+- Hay cinco preguntas que se contestan con texto. La respuesta va entre comillas, guardada en un objeto, y tiene que tener al menos 25 palabras.
+
+Si en algún momento fallan muchos chequeos de golpe, empezá por el primero que falla. Casi siempre es algo de la limpieza del punto 1, que arrastra todo lo que viene después.
+
+Corré este bloque antes que nada:
+
+```{r}
+#| label: setup
+library(readr)
+library(janitor)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(gtsummary)
+library(survival)
+library(survminer)
+source("chequear-tp.R")
+```
+
+Si dice que no encuentra `chequear-tp.R`, corré esto en la consola y volvé a intentar:
+
+```r
+source("actualizar.R")
+traer("chequear-tp.R")
+```
+
+------------------------------------------------------------------------
+
+## 0. Quién entrega
+
+Cambiá el mail por el mismo con el que te anotaste al curso. Es lo que identifica tu entrega.
+
+```{r}
+mi_mail <- "tu.mail@ejemplo.com"
+```
+
+```{r}
+chequear_mail()
+```
+
+------------------------------------------------------------------------
+
+## El estudio
+
+Un ensayo aleatorizado comparó un tratamiento nuevo para la hipertensión contra la atención habitual. Se asignó al azar a 400 pacientes, se les midió la presión sistólica al ingresar y a los seis meses, y se los siguió durante un año para ver quién se internaba. A los del grupo tratamiento se les registró además si siguieron tomándolo.
+
+Los datos son simulados, pero la planilla viene como vienen las de verdad: la cargaron varias personas.
+
+Está en `datos/ensayo-tp.csv` y tiene estas columnas:
+
+| Columna | Qué es |
+|---|---|
+| `ID` | Identificador del paciente |
+| `Brazo` | Grupo asignado: control o tratamiento |
+| `Fecha de ingreso` | Cuándo entró al estudio. No la vas a necesitar |
+| `Edad` | En años |
+| `Sexo` | Femenino o masculino |
+| `Diabetes` | Sí o No |
+| `PAS basal` | Presión sistólica al ingresar, en mmHg |
+| `PAS 6 meses` | Presión sistólica a los seis meses, en mmHg |
+| `Adhiere` | Si siguió con el tratamiento asignado |
+| `Internación` | Si se internó durante el seguimiento |
+| `Días` | Días hasta la internación, o hasta el último control si no se internó |
+
+------------------------------------------------------------------------
+
+## 1. Limpiar la planilla
+
+*Módulos 1 y 2.*
+
+Importá la planilla y dejala lista para analizar, en un objeto que se llame `ensayo`. Antes de seguir, tiene que cumplir esto:
+
+- Nombres de columna sin espacios, tildes ni mayúsculas.
+- La presión a los seis meses como número. Mirá cómo entra y acordate de la clase 1.
+- El brazo con solo dos valores, `"control"` y `"tratamiento"`, y el sexo con dos.
+- Sin filas repetidas. Hay una.
+- Sin edades imposibles. Hay una, y no se adivina: queda como `NA`.
+
+Después guardá cuántos pacientes quedaron en `n_pacientes`, cuántos hay en el brazo tratamiento en `n_tratamiento`, cuántos no tienen la presión de los seis meses en `n_sin_pas6`, y la edad media en `edad_media`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_tp("n_pacientes", "45828ad6cf015cf14dc173f30b0f0d61", 0)
+chequear_tp("n_tratamiento", "eb1bff38860b6471b6a2adb768ddc0c8", 0)
+chequear_tp("n_sin_pas6", "04563fadb439f0e3b95b3f6989d6b2e5", 0)
+chequear_tp("edad_media", "9dcfbfd4720e8ff4155db0cf36263578", 1)
+```
+
+Si la edad media no te da, lo más probable es que la edad imposible siga ahí: un solo valor así mueve la media dos años.
+
+------------------------------------------------------------------------
+
+## 2. Describir
+
+*Módulo 3.*
+
+Armá la tabla 1 por brazo con `tbl_summary()`, con la edad, el sexo, la diabetes y la presión basal. Sin `add_p()`. No se chequea, pero mirala: es la tabla que abriría cualquier paper de este ensayo.
+
+Después hacé un gráfico que compare la presión a los seis meses entre los dos brazos, y guardalo en `g_pas`. Elegí vos qué gráfico.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_objeto("g_pas", "ggplot", "un gráfico de ggplot")
+```
+
+**Pregunta.** ¿Por qué la tabla 1 de un ensayo aleatorizado no lleva p valores?
+
+```{r}
+respuesta_1 <- "Escribí acá tu respuesta."
+```
+
+```{r}
+chequear_respuesta("respuesta_1")
+```
+
+------------------------------------------------------------------------
+
+## 3. El efecto principal
+
+*Módulo 4.*
+
+Compará la presión a los seis meses entre los dos brazos con `t.test()`, por intención de tratar: todos los pacientes, en el grupo al que fueron asignados. Guardá los extremos del intervalo de confianza en `ic_bajo` e `ic_alto`.
+
+El intervalo sale como control menos tratamiento, que es el orden en que lo devuelve `t.test()`. Si el tratamiento baja la presión, da positivo.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_tp("ic_bajo", "c4017697c10e3f5a3cdecd73cd173783", 2)
+chequear_tp("ic_alto", "4d213708ef3711b8ae60ec7b53666628", 2)
+```
+
+**Pregunta.** Supongamos que una baja de menos de 5 mmHg no le cambia nada a un paciente. ¿Qué te dice este intervalo sobre eso? ¿Alcanzaría con informar que el resultado es significativo?
+
+```{r}
+respuesta_2 <- "Escribí acá tu respuesta."
+```
+
+```{r}
+chequear_respuesta("respuesta_2")
+```
+
+------------------------------------------------------------------------
+
+## 4. La internación
+
+*Módulo 5.*
+
+Calculá el riesgo de internación en cada brazo. Guardá el riesgo relativo, tratamiento sobre control, en `rr`, y el número necesario a tratar, redondeado hacia arriba, en `nnt`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_tp("rr", "5dfb86b54ca852ba0108199d104c8b76", 3)
+chequear_tp("nnt", "369cfe4311fd05048adea759bdcab16a", 0)
+```
+
+------------------------------------------------------------------------
+
+## 5. Ajustar por la presión basal
+
+*Módulos 4 y 5.*
+
+Ajustá una regresión lineal de la presión a los seis meses según el brazo y la presión basal. Guardá en `coef_ajustado` el coeficiente del brazo.
+
+Ese coeficiente es tratamiento menos control, al revés que el `t.test()`, así que si el tratamiento baja la presión da negativo. Para ver su intervalo, usá `confint()` sobre el modelo.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_tp("coef_ajustado", "1c0e8ab133961df909df418996e48c44", 2)
+```
+
+**Pregunta.** Compará con el punto 3: ¿cuánto se movió el efecto, y qué pasó con el ancho del intervalo? En la clase 4, agregar la especie cambiaba la pendiente porque había confusión. ¿Puede haber confusión por la presión basal en un ensayo aleatorizado? ¿Para qué sirve entonces ajustar por ella?
+
+```{r}
+respuesta_3 <- "Escribí acá tu respuesta."
+```
+
+```{r}
+chequear_respuesta("respuesta_3")
+```
+
+------------------------------------------------------------------------
+
+## 6. Supervivencia
+
+*Módulo 5.*
+
+Ajustá una curva de Kaplan-Meier del tiempo hasta la internación según el brazo, y guardala en `km`. Graficala con `ggsurvplot()`, con la tabla de pacientes en riesgo.
+
+Después corré el log-rank con `survdiff()` y guardá el estadístico chi cuadrado en `logrank`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_objeto("km", "survfit", "una curva de supervivencia")
+chequear_tp("logrank", "64358b683932ff8628a4f3ece23ecffb", 1)
+```
+
+------------------------------------------------------------------------
+
+## 7. Intención de tratar y por protocolo
+
+*Módulo 6.*
+
+Repetí la comparación del punto 3, pero solo con los pacientes que siguieron con el tratamiento asignado. Guardá en `dif_pp` la diferencia de medias, control menos tratamiento.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_tp("dif_pp", "8ac311a261b66c317e9caa6f7ebdeb3c", 2)
+```
+
+**Pregunta.** El análisis por protocolo da un efecto más grande que el del punto 3. ¿Cuál de los dos va como análisis principal, y por qué? ¿Qué puede estar exagerando el otro?
+
+```{r}
+respuesta_4 <- "Escribí acá tu respuesta."
+```
+
+```{r}
+chequear_respuesta("respuesta_4")
+```
+
+------------------------------------------------------------------------
+
+## 8. El informe
+
+*Módulo 6.*
+
+Escribí el párrafo de resultados que iría en un paper: el efecto principal con su intervalo, el riesgo relativo de internación y el resultado del log-rank.
+
+Armalo con `paste0()`, sacando cada número de los objetos que ya calculaste en vez de escribirlo a mano. Así, si cambia un dato de la planilla, el párrafo se actualiza solo. Tiene que tener al menos 40 palabras.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_respuesta("informe", minimo = 40)
+```
+
+------------------------------------------------------------------------
+
+## Cómo se entrega
+
+1. Corré todo de nuevo desde cero: en el desplegable del botón Run, arriba del editor, Restart R and Run All Chunks. Revisá que todos los chequeos den correcto o respondida.
+2. Apretá Render. Te queda un archivo `tp-integrador.html` al lado del cuaderno.
+3. En el panel Files, tildá `tp-integrador.html`, y después More, Export.
+4. Subí ese archivo a la tarea del trabajo integrador en Classroom.

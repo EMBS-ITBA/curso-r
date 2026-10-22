@@ -1,0 +1,378 @@
+---
+title: "Clase 6, resuelta y explicada"
+subtitle: "Ensayos clínicos y protocolo reproducible"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(dplyr)
+library(pwr)
+source("../chequear.R")
+```
+
+## Ejercicio 1
+
+```{r}
+set.seed(99)
+simple <- sample(c("A", "B"), 20, replace = TRUE)
+
+n_a <- sum(simple == "A")
+n_b <- sum(simple == "B")
+
+table(simple)
+
+chequear("n_a", 6)
+chequear("n_b", 14)
+```
+
+Seis contra catorce con 20 pacientes. Y la semilla no tiene nada de especial:
+
+```{r}
+peores <- sapply(1:200, function(s) {
+  set.seed(s)
+  sum(sample(c("A", "B"), 20, replace = TRUE) == "A")
+})
+table(peores)
+```
+
+Sobre 200 semillas, el grupo A va de 6 a 15 pacientes. Queda exactamente 10 contra 10 en
+menos de una de cada cinco.
+
+Con n grande el desbalance se diluye, pero los ensayos reclutan de a poco y a veces paran
+antes. Si el desbalance ocurre, ocurre justo cuando menos pacientes tenés.
+
+## Ejercicio 2
+
+```{r}
+set.seed(100)
+permutada <- sample(rep(c("A", "B"), length.out = 40))
+
+n_a_perm <- sum(permutada == "A")
+n_a_perm
+
+chequear("n_a_perm", 20)
+```
+
+Veinte y veinte garantizado, porque la lista ya venía con 20 de cada uno y solo se barajó.
+
+El problema aparece en el medio:
+
+```{r}
+permutada[1:10]
+table(permutada[1:10])
+```
+
+Dos contra ocho entre los primeros diez. Al final el balance está, pero durante el
+reclutamiento no.
+
+Para un ensayo que puede frenarse en un análisis intermedio, o que se interrumpe por
+falta de financiamiento, eso importa.
+
+## Ejercicio 3
+
+```{r}
+bloques <- function(n, tam = 4, seed = 2026) {
+  set.seed(seed)
+  k <- ceiling(n / tam)
+  unlist(lapply(seq_len(k), function(i) {
+    sample(rep(c("A", "B"), each = tam / 2))
+  }))[1:n]
+}
+
+asignacion <- bloques(40)
+asignacion
+
+balance_10 <- sum(asignacion[1:10] == "A")
+
+chequear("balance_10", 5)
+```
+
+```{r}
+balance <- sapply(seq(4, 40, by = 4), function(i) {
+  c(hasta = i, A = sum(asignacion[1:i] == "A"), B = sum(asignacion[1:i] == "B"))
+})
+t(balance)
+```
+
+Balanceado en cada múltiplo de 4, que es el tamaño del bloque. Ese es el punto: el
+equilibrio está garantizado **durante** el reclutamiento.
+
+Entre un múltiplo y el siguiente puede haber una diferencia de a lo sumo `tam/2`, que con
+bloques de 4 es 2 pacientes.
+
+**El tamaño del bloque es un compromiso.** Bloques chicos balancean mejor y son más
+fáciles de adivinar: con bloques de 2, el que recluta sabe que después de una A viene una
+B. Si ese alguien decide a quién ofrecer el estudio, la aleatorización se arruina.
+
+Por eso en ensayos reales se usan **tamaños variables**, sorteados entre 2, 4 y 6, y la
+lista la maneja alguien que no recluta.
+
+## Ejercicio 4
+
+```{r}
+calculo <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80)
+calculo
+
+n_por_grupo <- ceiling(calculo$n)
+
+chequear("n_por_grupo", 64)
+```
+
+63,77 por grupo, o sea 64. Siempre hacia arriba: con 63 no llegás a la potencia que
+pediste.
+
+El `d = 0.5` es la d de Cohen, la diferencia de medias dividida por el desvío estándar
+común. Es adimensional, y por eso la misma fórmula sirve para gramos, milímetros o
+puntajes.
+
+## Ejercicio 5
+
+```{r}
+n_efecto_chico  <- ceiling(pwr.t.test(d = 0.3, sig.level = 0.05, power = 0.80)$n)
+n_potencia_alta <- ceiling(pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.90)$n)
+
+c(efecto_0.5_pot_80 = 64, efecto_0.3_pot_80 = n_efecto_chico,
+  efecto_0.5_pot_90 = n_potencia_alta)
+
+chequear("n_efecto_chico", 176)
+chequear("n_potencia_alta", 86)
+```
+
+De 64 a 176 por bajar el efecto de 0,5 a 0,3.
+
+La relación es cuadrática: el n necesario crece con el inverso del cuadrado del efecto.
+Detectar un efecto la mitad de grande cuesta cuatro veces más pacientes.
+
+```{r}
+#| fig-height: 3
+efectos <- seq(0.2, 1, by = 0.05)
+ns <- sapply(efectos, function(d) pwr.t.test(d = d, sig.level = 0.05, power = 0.80)$n)
+plot(efectos, ns, type = "l", lwd = 3, col = "firebrick",
+     xlab = "Tamaño del efecto (d)", ylab = "n por grupo")
+```
+
+**De dónde sale el efecto esperado.** Esta es la parte difícil y no es estadística. Sale
+de un estudio piloto, de la literatura sobre intervenciones parecidas, o de la pregunta
+clínica de qué diferencia sería lo bastante grande como para cambiar una conducta.
+
+Lo que **nunca** se hace es sacarlo de los datos que vas a analizar. Eso es circular, y
+es un error frecuente.
+
+## Ejercicio 6
+
+```{r}
+potencia_sim <- function(n, delta, sd = 1, reps = 2000, seed = 7) {
+  set.seed(seed)
+  mean(replicate(reps, {
+    a <- rnorm(n, 0, sd)
+    b <- rnorm(n, delta, sd)
+    t.test(a, b)$p.value < 0.05
+  }))
+}
+
+pot_64 <- potencia_sim(64, 0.5)
+pot_64
+
+chequear("pot_64", 0.789)
+```
+
+La fórmula dijo 80 %. La simulación da 78,9 %.
+
+Coinciden dentro del ruido de 2000 repeticiones, y eso valida las dos cosas a la vez.
+
+**Cómo funciona.** La potencia es la probabilidad de detectar un efecto que existe. Así
+que generás muchos estudios donde el efecto existe (por eso `b` tiene media `delta`),
+corrés el análisis en cada uno, y contás la proporción de veces que sale significativo.
+Esa proporción es la definición de potencia.
+
+`mean()` sobre un vector de `TRUE` y `FALSE` cuenta la proporción de `TRUE`, que es el
+atajo de la clase 1.
+
+**Por qué esto es lo que se usa de verdad.** La fórmula vale para dos grupos
+independientes, desenlace continuo, varianzas iguales y sin pérdidas. En cuanto el diseño
+tiene medidas repetidas, abandono previsto, un desenlace raro o un análisis intermedio, no
+hay fórmula cerrada. La simulación se adapta cambiando dos líneas.
+
+## Ejercicio 7
+
+```{r}
+pot_100      <- potencia_sim(100, 0.5)
+pot_64_chico <- potencia_sim(64, 0.3)
+
+c(n100_d0.5 = pot_100, n64_d0.3 = pot_64_chico)
+
+chequear("pot_100", 0.9455)
+chequear("pot_64_chico", 0.388)
+```
+
+Con el efecto chico y 64 por grupo, la potencia es 39 %. Si el efecto existe, es más
+probable no detectarlo que detectarlo.
+
+Un estudio así que dé no significativo no permite concluir que no hay efecto. Permite
+concluir que el estudio era demasiado chico, que es otra cosa.
+
+**Sobre la potencia post hoc.** Si un revisor pide calcular la potencia después de
+obtener un resultado no significativo, la respuesta correcta es que ese cálculo no agrega
+información: la potencia observada es una función determinística del p valor que ya está
+reportado. Lo que sí hay que reportar es el intervalo de confianza, que muestra qué
+efectos quedaron descartados y cuáles no.
+
+## Ejercicio 8
+
+```{r}
+set.seed(42)
+n <- 200
+grupo      <- rep(c("control", "tratado"), each = n / 2)
+pronostico <- rnorm(n)
+adhiere    <- ifelse(grupo == "tratado", pronostico > -0.5, TRUE)
+desenlace  <- pronostico + ifelse(grupo == "tratado" & adhiere, 0.6, 0)
+
+ensayo <- data.frame(grupo, adhiere, desenlace)
+n_abandonos <- sum(!ensayo$adhiere)
+
+table(ensayo$grupo, ensayo$adhiere)
+
+chequear("n_abandonos", 29)
+```
+
+Veintinueve de los cien asignados a tratamiento lo abandonaron. Y no al azar: abandonaron
+los que tenían peor pronóstico de base.
+
+```{r}
+data.frame(grupo, adhiere, pronostico) |>
+  filter(grupo == "tratado") |>
+  group_by(adhiere) |>
+  summarise(pronostico_medio = round(mean(pronostico), 3), n = n())
+```
+
+Eso es lo que pasa en los ensayos reales. La gente que empeora abandona el tratamiento, o
+se cambia de rama, o se pierde del seguimiento.
+
+## Ejercicio 9
+
+```{r}
+itt <- t.test(desenlace ~ grupo, data = ensayo)
+pp  <- t.test(desenlace ~ grupo, data = filter(ensayo, adhiere))
+
+dif_itt <- round(diff(rev(itt$estimate)), 4)
+dif_pp  <- round(diff(rev(pp$estimate)), 4)
+
+c(ITT = dif_itt, por_protocolo = dif_pp, efecto_real = -0.6)
+
+chequear("dif_itt", -0.306)
+chequear("dif_pp", -0.9029)
+```
+
+El efecto que metimos en la simulación es 0,6.
+
+ITT da 0,31. Por protocolo da 0,90. Uno se queda a la mitad y el otro se pasa por un 50 %.
+
+**Por qué ITT diluye.** Incluye a los 29 que no recibieron el tratamiento, y esos no
+pudieron beneficiarse. El grupo "tratado" es en realidad una mezcla de tratados y no
+tratados, así que el efecto promedio del grupo es menor que el efecto del tratamiento.
+
+**Por qué por protocolo exagera.** Al sacar a los 29 que abandonaron, sacó del grupo
+tratado justamente a los que tenían peor pronóstico. El grupo tratado quedó compuesto por
+gente que ya estaba mejor de entrada, y parte de esa ventaja se le atribuye al
+tratamiento.
+
+Eso es lo grave: **rompió la aleatorización**. Los dos grupos ya no son comparables,
+porque uno fue filtrado por una variable que predice el desenlace.
+
+**Por qué ITT es el análisis principal.** Conserva la única garantía que tenías: que los
+grupos eran comparables al inicio. Y responde la pregunta que le importa a un clínico,
+"¿qué le pasa a mi paciente si se la receto?", sabiendo que una parte no la va a tomar.
+Cuánto sirve la droga en quien efectivamente la toma es otra pregunta, y ITT la
+subestima.
+
+El análisis por protocolo se reporta como secundario, y siempre junto al ITT.
+
+## Ejercicio 10
+
+```{r}
+itt
+
+itt_ic_bajo <- round(itt$conf.int[1], 4)
+itt_ic_alto <- round(itt$conf.int[2], 4)
+
+chequear("itt_ic_bajo", -0.6077)
+chequear("itt_ic_alto", -0.0043)
+```
+
+El p da 0,047 y el intervalo va de 0,004 a 0,608.
+
+Reportar solo "p < 0,05" esconde lo importante. Ese intervalo incluye, por abajo, un
+efecto de 0,004 desvíos, indistinguible de nada. Y por arriba, 0,6 desvíos, que sería un
+hallazgo relevante.
+
+Con estos datos no se puede distinguir entre esas dos situaciones. El p valor no dice eso
+y el intervalo sí, y por eso CONSORT pide reportar el efecto con su intervalo.
+
+## Las preguntas sueltas
+
+**1.** Está resuelto en el ejercicio 1: sobre 200 semillas, el peor caso fue 15 contra 5.
+
+**2.**
+
+```{r}
+sapply(c(2, 4, 10), function(tam) {
+  a <- bloques(40, tam = tam)
+  c(tamano = tam,
+    desbalance_maximo = max(abs(cumsum(a == "A") - cumsum(a == "B"))))
+})
+```
+
+Con bloques de 2 el desbalance nunca pasa de 1. Con bloques de 10 puede llegar a 5, y con esta semilla llegó a 3.
+
+Lo que pierde el bloque chico es el ocultamiento. Con bloques de 2, después de una A viene
+seguro una B, y quien recluta puede adivinar la próxima asignación. Si decide a quién
+ofrecerle el estudio sabiendo qué le va a tocar, la aleatorización deja de proteger.
+
+La solución en ensayos reales: tamaños de bloque variables, sorteados, y la lista en manos
+de alguien que no recluta pacientes.
+
+**3.**
+
+```{r}
+potencia_con_abandono <- function(n, delta, abandono = 0.15, reps = 2000, seed = 7) {
+  set.seed(seed)
+  mean(replicate(reps, {
+    a <- rnorm(n, 0, 1); b <- rnorm(n, delta, 1)
+    a <- a[runif(n) > abandono]
+    b <- b[runif(n) > abandono]
+    t.test(a, b)$p.value < 0.05
+  }))
+}
+c(sin_abandono = potencia_sim(64, 0.5),
+  con_15pct    = potencia_con_abandono(64, 0.5))
+```
+
+La potencia cae de 0,79 a 0,72.
+
+Para recuperarla hay que inflar el n. La regla habitual es dividir por (1 − proporción de
+abandono): 64 / 0,85 ≈ 76 por grupo.
+
+```{r}
+potencia_con_abandono(76, 0.5)
+```
+
+Vuelve a 0,81, por encima del 0,80 que pedía el diseño. Ese inflado es exactamente lo que
+se escribe en el protocolo, y hay que
+justificar de dónde salió el 15 %.
+
+**4.** La tabla 1 va sin p valores. El motivo apareció en la resuelta de la clase 3,
+pregunta 2, y se desarrolla en esta: en un ensayo aleatorizado, testear diferencias basales es testear
+una hipótesis que sabés verdadera por construcción, porque vos asignaste los grupos al
+azar.
+
+Si el p da chico, observaste un resultado que ocurre el 5 % de las veces por definición.
+
+**5.** No hay solución única. Lo que tiene que pasar al final es que cambies un número en
+el `.csv` de entrada, aprietes Render, y el número que aparece en medio de una oración del
+texto cambie solo. Si eso funciona, entendiste Quarto.

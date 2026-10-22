@@ -1,0 +1,441 @@
+---
+title: "Clase 5, resuelta y explicada"
+subtitle: "Transversales, cohortes y supervivencia"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(epitools)
+library(survival)
+library(survminer)
+source("../chequear.R")
+```
+
+```{r}
+cohorte <- matrix(c(36, 84,
+                    42, 238),
+                  nrow = 2, byrow = TRUE,
+                  dimnames = list(exposicion = c("expuesto", "no expuesto"),
+                                  evento     = c("si", "no")))
+cohorte
+```
+
+## Ejercicio 1
+
+```{r}
+riesgo_exp   <- round(cohorte["expuesto", "si"] / sum(cohorte["expuesto", ]), 4)
+riesgo_noexp <- round(cohorte["no expuesto", "si"] / sum(cohorte["no expuesto", ]), 4)
+
+c(expuesto = riesgo_exp, no_expuesto = riesgo_noexp)
+
+chequear("riesgo_exp", 0.3)
+chequear("riesgo_noexp", 0.15)
+```
+
+Usar los nombres de fila y columna en vez de `cohorte[1,1]` cuesta lo mismo y hace
+imposible equivocarse de celda. Con índices numéricos, si alguien reordena la tabla el
+código sigue corriendo y devuelve otra cosa.
+
+Ese es el error silencioso de la clase: el riesgo relativo sale invertido y 0,5 parece
+tan razonable como 2.
+
+## Ejercicio 2
+
+```{r}
+prueba_prop <- binom.test(36, 120)
+prueba_prop
+
+prop_ic_bajo <- round(prueba_prop$conf.int[1], 4)
+prop_ic_alto <- round(prueba_prop$conf.int[2], 4)
+
+chequear("prop_ic_bajo", 0.2198)
+chequear("prop_ic_alto", 0.3904)
+```
+
+De 22 % a 39 %. Con 120 personas, esa es toda la precisión disponible.
+
+`binom.test()` usa el intervalo exacto de Clopper-Pearson. Comparado con la aproximación
+normal que se enseña en los cursos de estadística:
+
+```{r}
+p <- 36/120
+round(p + c(-1, 1) * 1.96 * sqrt(p * (1 - p) / 120), 4)
+```
+
+Parecidos acá, porque n es grande y p no está cerca de 0 ni de 1. Con proporciones
+extremas o muestras chicas, el normal puede dar límites fuera del rango 0 a 1, que es
+absurdo. El exacto nunca.
+
+## Ejercicio 3
+
+```{r}
+rr          <- riesgo_exp / riesgo_noexp
+dif_riesgos <- riesgo_exp - riesgo_noexp
+or          <- round((36 * 238) / (84 * 42), 4)
+
+c(RR = rr, diferencia = dif_riesgos, OR = or)
+
+chequear("rr", 2)
+chequear("dif_riesgos", 0.15)
+chequear("or", 2.4286)
+```
+
+Las tres describen la misma asociación y contestan preguntas distintas.
+
+- **RR = 2.** Los expuestos tienen el doble de riesgo. Es relativo: no dice nada sobre
+  cuán frecuente es el evento.
+- **Diferencia = 0,15.** Quince casos más por cada cien expuestos. Es absoluto, y es lo
+  que importa para decidir si vale la pena intervenir.
+- **NNT = 1 / 0,15 ≈ 6,7.** Hay que sacar de la exposición a siete personas para evitar
+  un caso.
+
+Un RR de 2 sobre un riesgo basal del 15 % y un RR de 2 sobre un riesgo basal del
+0,001 % son el mismo número y dos situaciones completamente distintas. Por eso nunca se
+reporta un riesgo relativo solo.
+
+**Por qué el OR da 2,43 y no 2.** El odds ratio compara odds, no riesgos:
+
+```{r}
+odds_exp   <- 0.30 / 0.70
+odds_noexp <- 0.15 / 0.85
+round(c(odds_expuesto = odds_exp, odds_no_expuesto = odds_noexp,
+        OR = odds_exp / odds_noexp), 4)
+```
+
+El odds ratio siempre se aleja del 1 más que el riesgo relativo, y la brecha crece cuando
+el evento es frecuente. Con un evento raro casi coinciden:
+
+```{r}
+rr_raro <- (3/100) / (15/1000)
+or_raro <- (3 * 985) / (97 * 15)
+round(c(RR = rr_raro, OR = or_raro), 4)
+```
+
+Mismo RR de 2, y ahora el OR da 2,03.
+
+Esa es la razón por la que el odds ratio se tolera en un estudio de casos y controles: en
+ese diseño no se puede calcular el riesgo, pero si el evento es raro el OR aproxima bien
+al RR. En una cohorte, donde el riesgo sí se puede calcular, reportar OR es una elección
+peor aunque el software lo devuelva por defecto.
+
+## Ejercicio 4
+
+```{r}
+rr_epi <- riskratio(cohorte, method = "wald", rev = "both")
+rr_epi$measure
+
+rr_ic_bajo <- round(rr_epi$measure[2, "lower"], 4)
+
+chequear("rr_ic_bajo", 1.3535)
+```
+
+De 1,35 a 2,96. No incluye al 1, así que hay asociación. Y es ancho: con estos datos el
+riesgo podría estar multiplicado por 1,35 o por casi 3, que son dos conclusiones
+distintas.
+
+**El `rev = "both"` importa.** epitools espera la tabla con el grupo no expuesto
+primero y el "no evento" primero, o sea al revés que la nuestra en las dos dimensiones.
+Sin ese argumento:
+
+```{r}
+riskratio(cohorte, method = "wald")$measure
+```
+
+Da 1,21: la razón de riesgos de **no** tener el evento, tomando al expuesto como
+referencia, porque epitools leyó al revés las filas y las columnas. El número es plausible y está mal. Por eso la
+regla es imprimir siempre la tabla al lado del resultado y verificar que el grupo de
+referencia sea el que creés.
+
+## Ejercicio 5
+
+```{r}
+chi     <- chisq.test(cohorte)
+chi_sin <- chisq.test(cohorte, correct = FALSE)
+
+p_chi     <- round(chi$p.value, 5)
+p_chi_sin <- round(chi_sin$p.value, 5)
+
+c(con_correccion = p_chi, sin_correccion = p_chi_sin)
+c(X2_con = round(chi$statistic, 4), X2_sin = round(chi_sin$statistic, 4))
+
+chequear("p_chi", 0.00086)
+chequear("p_chi_sin", 0.00052)
+```
+
+R aplica por defecto la corrección de continuidad de Yates en tablas 2x2. El estadístico
+pasa de 12,04 a 11,10.
+
+La corrección existe porque el chi cuadrado aproxima una distribución discreta con una
+continua, y es conservadora: el p sube. Hay bastante discusión sobre si conviene usarla;
+lo importante es saber que R la aplica sola y que el número publicado depende de eso.
+
+```{r}
+fisher.test(cohorte)
+```
+
+Fisher da p = 0,00087, casi igual. Con 400 observaciones los tres coinciden.
+
+La regla práctica: si alguna frecuencia **esperada** es menor a 5, Fisher. Las esperadas
+se miran con `chi$expected`:
+
+```{r}
+round(chi$expected, 1)
+```
+
+Todas arriba de 5, así que acá el chi cuadrado está bien.
+
+## Ejercicio 6
+
+```{r}
+pinguinos <- penguins |> filter(!is.na(sex), !is.na(body_mass_g))
+
+log1 <- glm(sex ~ body_mass_g, data = pinguinos, family = binomial)
+summary(log1)
+
+or_100g <- round(exp(coef(log1)[2] * 100), 4)
+
+chequear("or_100g", 1.132)
+```
+
+Por cada 100 gramos más de masa, las odds de ser macho se multiplican por 1,13.
+
+```{r}
+round(exp(coef(log1)[2]), 6)
+```
+
+El mismo modelo, por gramo, da 1,0012. Parece un efecto nulo y es exactamente el mismo
+hallazgo.
+
+**La unidad la elegís vos.** El coeficiente está en log-odds por unidad del predictor, y
+la unidad en que viene el predictor es un accidente de cómo se midió. Para que el número
+signifique algo hay que elegir un incremento con sentido: 100 gramos acá, 10 años de
+edad, un desvío estándar.
+
+El orden de las operaciones importa: multiplicás el coeficiente **antes** de exponenciar.
+`exp(b)^100` también funciona, `exp(b) * 100` no.
+
+## Ejercicio 7
+
+```{r}
+log2 <- glm(sex ~ body_mass_g + species, data = pinguinos, family = binomial)
+summary(log2)
+
+or_100g_aj <- round(exp(coef(log2)[2] * 100), 4)
+
+chequear("or_100g_aj", 2.0903)
+```
+
+De 1,13 a 2,09.
+
+En la clase 4, agregar la especie **bajaba** el coeficiente de la aleta. Acá lo **sube**,
+casi al doble. Las dos cosas son confusión.
+
+Lo que pasa: los Gentoo son mucho más pesados que las otras dos especies, y dentro de
+cada especie los machos son más pesados que las hembras. En el modelo sin ajustar, la
+variación entre especies es tan grande que tapa la diferencia entre sexos. Al controlar
+por especie, la relación queda a la vista.
+
+```{r}
+#| fig-height: 3.2
+library(ggplot2)
+ggplot(pinguinos, aes(body_mass_g, fill = sex)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ species, scales = "free_y") +
+  theme_minimal()
+```
+
+Dentro de cada panel, las dos distribuciones están claramente corridas. Si mezclás los
+tres paneles, la separación se diluye.
+
+La moraleja operativa: el ajuste puede mover el efecto en cualquier dirección, y qué
+variables entran al modelo lo decidís vos con criterio clínico. No hay un procedimiento
+automático que lo resuelva.
+
+## Ejercicio 8
+
+```{r}
+levels(pinguinos$sex)
+
+nuevo <- data.frame(body_mass_g = 5500,
+                    species = factor("Gentoo", levels = levels(pinguinos$species)))
+
+prob_gentoo <- round(predict(log2, newdata = nuevo, type = "response"), 4)
+prob_gentoo
+
+chequear("prob_gentoo", 0.9623)
+```
+
+R modela la probabilidad del **segundo** nivel del factor, que acá es `male`.
+
+Sin `type = "response"`:
+
+```{r}
+round(predict(log2, newdata = nuevo), 4)
+```
+
+Eso es el logit: 3,24. No es una probabilidad y puede ser negativo. Es el error más común
+al predecir con una logística, y el resultado parece un bug del modelo.
+
+A tres masas distintas:
+
+```{r}
+masas <- data.frame(body_mass_g = c(5000, 5500, 6000),
+                    species = factor("Gentoo", levels = levels(pinguinos$species)))
+round(predict(log2, newdata = masas, type = "response"), 4)
+```
+
+De 0,39 a 0,999 en mil gramos. El modelo es lineal en la escala logit y claramente no lo
+es en probabilidad: ese achatamiento hacia 1 es justo lo que `lm()` no podría representar,
+porque una recta seguiría subiendo y predeciría probabilidades mayores que 1.
+
+## Ejercicio 9
+
+```{r}
+n_eventos    <- sum(lung$status == 2)
+n_censurados <- sum(lung$status == 1)
+
+c(muertos = n_eventos, censurados = n_censurados, total = nrow(lung))
+
+chequear("n_eventos", 165)
+chequear("n_censurados", 63)
+```
+
+Los 63 censurados tienen información: de cada uno sabés que siguió vivo al menos hasta
+cierto día.
+
+Qué pasaría si los borráramos:
+
+```{r}
+round(mean(lung$time[lung$status == 2]), 1)
+round(mean(lung$time), 1)
+```
+
+El promedio sobre los muertos es menor, porque descartás justamente a los que iban bien.
+Ese es el sesgo, y es la razón por la que existen los métodos de supervivencia.
+
+El `Surv()` marca los censurados con un `+`:
+
+```{r}
+head(Surv(lung$time, lung$status), 12)
+```
+
+## Ejercicio 10
+
+```{r}
+km <- survfit(Surv(time, status) ~ sex, data = lung)
+km
+
+mediana_h <- summary(km)$table["sex=1", "median"]
+mediana_m <- summary(km)$table["sex=2", "median"]
+
+chequear("mediana_h", 270)
+chequear("mediana_m", 426)
+```
+
+```{r}
+#| fig-height: 5
+ggsurvplot(km, data = lung, risk.table = TRUE, pval = TRUE,
+           legend.labs = c("Hombres", "Mujeres"),
+           xlab = "Días", ylab = "Probabilidad de supervivencia")
+```
+
+Te va a aparecer un aviso, `Ignoring unknown labels`. Sale de survminer con la versión nueva de ggplot2, y el gráfico se dibuja completo igual.
+
+El eje vertical es la probabilidad de seguir sin el evento hasta ese momento. Arranca en
+1 y solo puede bajar.
+
+La curva es escalonada porque solo cambia cuando ocurre un evento. Entre dos muertes no
+pasa nada y la curva es horizontal.
+
+Las crucecitas son las censuras. No hacen bajar la curva: el paciente sale del
+denominador y los que quedan pesan un poco más en los escalones siguientes.
+
+La mediana se lee trazando una horizontal en 0,5 y viendo dónde corta cada curva. 270
+días contra 426.
+
+**La tabla de abajo conviene publicarla siempre.** Hacia el final quedan muy pocos
+pacientes, así que cada muerte produce un escalón enorme que parece un hallazgo y es
+ruido. Sin esa tabla el lector no tiene forma de saberlo.
+
+Y un detalle que confunde: si la curva nunca baja de 0,5, la mediana no existe y R
+devuelve `NA`. El código está bien.
+
+## Ejercicio 11
+
+```{r}
+lr <- survdiff(Surv(time, status) ~ sex, data = lung)
+lr
+
+logrank_chi <- round(lr$chisq, 4)
+
+chequear("logrank_chi", 10.3267)
+```
+
+Con 1 grado de libertad:
+
+```{r}
+format(pchisq(lr$chisq, df = 1, lower.tail = FALSE), digits = 4)
+```
+
+El log-rank compara las **curvas enteras**, acumulando las diferencias entre lo observado
+y lo esperado en cada momento en que ocurre un evento. Por eso no contesta "¿hay
+diferencia a los dos años?", que es otra pregunta y necesita otra herramienta.
+
+Lo que asume: que la razón de riesgos es constante en el tiempo. Si las curvas se cruzan,
+el log-rank pierde potencia y puede no detectar una diferencia que es evidente en el
+gráfico. Mirar las curvas antes de leer el p valor, como siempre.
+
+## Las preguntas sueltas
+
+**1.** Está resuelto en el ejercicio 3: con un evento raro, RR = 2 y OR = 2,03.
+
+**2.**
+
+```{r}
+datos_largos <- data.frame(
+  exposicion = rep(c("expuesto", "no expuesto"), times = c(120, 280)),
+  evento = c(rep(c("si", "no"), times = c(36, 84)),
+             rep(c("si", "no"), times = c(42, 238)))
+)
+table(datos_largos$exposicion, datos_largos$evento)
+```
+
+`table()` ordena alfabéticamente las dos dimensiones. "expuesto" sigue viniendo antes que
+"no expuesto" por casualidad, pero **"no" ahora viene antes que "si"**, al revés que en
+nuestra matriz.
+
+Si calculás el riesgo con índices numéricos sobre esta tabla, obtenés 84/120 = 0,70 en
+vez de 0,30.
+
+La defensa es usar nombres y no posiciones, y fijar el orden a propósito con `factor()`
+cuando importa.
+
+**3.** La referencia es Adelie, porque es el primer nivel del factor. Para cambiarla:
+
+```{r}
+pinguinos |>
+  mutate(species = forcats::fct_relevel(species, "Gentoo")) |>
+  glm(sex ~ body_mass_g + species, data = _, family = binomial) |>
+  coef() |>
+  round(4)
+```
+
+El coeficiente de la masa no cambia. Lo que cambia es contra qué se comparan las otras
+dos especies.
+
+**4.** Sin la tabla de riesgo, el tramo final de la curva de mujeres se ve igual de
+confiable que el principio. Con la tabla se ve que a los 750 días quedan tres mujeres, y
+que los escalones de ese tramo dependen de un puñado de pacientes.
+
+**5.** La regresión de Cox (`coxph()`) modela el riesgo instantáneo en función de
+covariables, y devuelve razones de riesgo. Es a supervivencia lo que la logística es a un
+desenlace binario: permite ajustar por varias variables a la vez, en vez de comparar dos
+curvas sueltas.

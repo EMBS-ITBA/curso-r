@@ -1,0 +1,360 @@
+---
+title: "Clase 3, resuelta y explicada"
+subtitle: "Describir, graficar y evaluar normalidad"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(ggplot2)
+library(gtsummary)
+source("../chequear.R")
+```
+
+## Ejercicio 1
+
+```{r}
+sueldos <- c(1800, 1950, 2100, 2000, 1850, 2050, 1900, 2200, 1750, 48000)
+
+sueldo_medio <- mean(sueldos)
+sueldo_mediano <- median(sueldos)
+
+chequear("sueldo_medio", 6560)
+chequear("sueldo_mediano", 1975)
+```
+
+La media da 6560 y nadie gana eso. El que más gana después del dueño cobra 2200.
+
+La mediana parte la muestra al medio: cinco ganan menos, cinco ganan más. Un valor extremo puede moverla como mucho una posición, mientras que a la media la arrastra sin límite.
+
+La regla práctica: si la distribución es asimétrica, la mediana describe mejor al individuo típico. La media sigue siendo la correcta si lo que te interesa es el total, por ejemplo para calcular cuánto paga la empresa en sueldos.
+
+## Ejercicio 2
+
+```{r}
+iqr_masa <- IQR(penguins$body_mass_g, na.rm = TRUE)
+sd_masa <- sd(penguins$body_mass_g, na.rm = TRUE)
+
+c(iqr = iqr_masa, sd = sd_masa)
+
+chequear("iqr_masa", 1200)
+```
+
+El rango intercuartílico es la distancia entre el percentil 25 y el 75, o sea el ancho de la caja del boxplot. Contiene al 50 % central de los datos.
+
+Da 1200 contra un desvío de 802. No son comparables directamente: para una normal, el IQR es aproximadamente 1,35 desvíos. Acá la razón da 1,50, y esa diferencia ya te sugiere que la distribución no es normal, antes de correr ningún test.
+
+## Ejercicio 3
+
+```{r}
+#| fig-height: 3
+ggplot(penguins, aes(x = body_mass_g))
+```
+
+Ese es el panel vacío. `aes()` mapeó la masa al eje horizontal, ggplot calculó el rango y dibujó la escala. No hay nada adentro porque no dijiste con qué forma geométrica representar los datos.
+
+```{r}
+g_hist <- ggplot(penguins, aes(x = body_mass_g)) +
+  geom_histogram(bins = 30)
+g_hist
+
+chequear_grafico("g_hist")
+```
+
+El mismo dato con tres anchos de intervalo:
+
+```{r}
+#| fig-height: 2.5
+#| layout-ncol: 3
+ggplot(penguins, aes(body_mass_g)) + geom_histogram(bins = 10) + labs(title = "bins = 10")
+ggplot(penguins, aes(body_mass_g)) + geom_histogram(bins = 30) + labs(title = "bins = 30")
+ggplot(penguins, aes(body_mass_g)) + geom_histogram(bins = 60) + labs(title = "bins = 60")
+```
+
+Con 10 parece una sola distribución ancha. Con 30 y con 60 se empiezan a ver dos grupos. Y hay dos grupos de verdad: los Gentoo pesan mucho más que las otras dos especies.
+
+Un histograma con pocos intervalos te habría escondido el hallazgo principal del dataset.
+
+## Ejercicio 4
+
+```{r}
+g_box <- ggplot(penguins, aes(x = species, y = body_mass_g)) +
+  geom_boxplot()
+g_box
+
+chequear_grafico("g_box")
+```
+
+El boxplot dibuja cinco números: la mediana es la línea del medio, la caja va del percentil 25 al 75, los bigotes llegan hasta el último dato que esté a menos de 1,5 veces el IQR de la caja, y lo que queda más allá se dibuja como punto.
+
+Esos puntos se llaman valores atípicos por una convención del gráfico. Un valor fuera del bigote puede ser un dato perfectamente legítimo de una distribución con colas largas.
+
+```{r}
+#| layout-ncol: 2
+#| fig-height: 3.5
+ggplot(penguins, aes(species, body_mass_g)) + geom_boxplot() + labs(title = "Boxplot")
+ggplot(penguins, aes(species, body_mass_g)) + geom_violin() + labs(title = "Violín")
+```
+
+El violín dibuja la densidad completa. Para estas tres especies los dos cuentan lo mismo, porque cada especie es unimodal. La diferencia aparece cuando no lo es:
+
+```{r}
+#| layout-ncol: 2
+#| fig-height: 3.5
+set.seed(3)
+bimodal <- tibble(
+  grupo = rep("A", 300),
+  valor = c(rnorm(150, 10, 1), rnorm(150, 20, 1))
+)
+ggplot(bimodal, aes(grupo, valor)) + geom_boxplot() + labs(title = "Boxplot")
+ggplot(bimodal, aes(grupo, valor)) + geom_violin() + labs(title = "Violín")
+```
+
+El boxplot de la izquierda es el de una distribución con dos modas bien separadas y no hay nada en el dibujo que lo delate. Parece una distribución ancha y simétrica. El violín lo muestra de inmediato.
+
+## Ejercicio 5
+
+```{r}
+penguins |>
+  select(species, body_mass_g, flipper_length_mm, sex) |>
+  tbl_summary(by = species)
+```
+
+```{r}
+mediana_gentoo <- penguins |>
+  filter(species == "Gentoo") |>
+  pull(body_mass_g) |>
+  median(na.rm = TRUE)
+
+chequear("mediana_gentoo", 5000)
+```
+
+Coincide con la tabla, así que esa celda es una mediana.
+
+Las decisiones que gtsummary tomó sin preguntar:
+
+1. Resumir las continuas con mediana y cuartiles en vez de media y desvío. Lo avisa en la nota al pie, `Median (Q1, Q3)`, en letra chica.
+2. Mostrar las categóricas como n con porcentaje.
+3. Calcular los porcentajes sobre los casos no faltantes, con una fila aparte de `Unknown`.
+4. Redondear a una cantidad de dígitos que eligió según la magnitud.
+
+Las cuatro son defensables. Ninguna es obvia. Y si tu revista pide media con desvío, hay que cambiarla:
+
+```{r}
+penguins |>
+  select(species, body_mass_g) |>
+  tbl_summary(by = species,
+              statistic = all_continuous() ~ "{mean} ({sd})")
+```
+
+La masa media de los Gentoo es 5076 y la mediana 5000. Son números distintos, y cuál de los dos va en la tabla cambia lo que el lector entiende.
+
+## Ejercicio 6
+
+```{r}
+resultado <- shapiro.test(penguins$body_mass_g)
+resultado
+
+rechaza_completa <- resultado$p.value < 0.05
+
+chequear("rechaza_completa", TRUE)
+```
+
+Un p de 3,7 por diez a la menos ocho. Rechaza sin ninguna duda. Lo que hay que preguntarse es qué significa eso:
+
+```{r}
+#| fig-height: 3
+ggplot(penguins, aes(body_mass_g)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ species)
+```
+
+No hay una distribución, hay tres. La masa corporal de "los pingüinos" no es normal porque es una mezcla, y los Gentoo pesan mucho más que las otras dos especies. El test detectó algo real, y la respuesta es analizar por especie antes que transformar.
+
+Este es el caso más común en datos biológicos. Cuando una variable no parece normal, lo primero que hay que preguntarse es si hay subgrupos mezclados.
+
+## Ejercicio 7
+
+```{r}
+p_por_especie <- function(sp) {
+  v <- penguins$body_mass_g[penguins$species == sp]
+  round(shapiro.test(v[!is.na(v)])$p.value, 4)
+}
+
+p_adelie <- p_por_especie("Adelie")
+p_chinstrap <- p_por_especie("Chinstrap")
+p_gentoo <- p_por_especie("Gentoo")
+
+chequear("p_adelie", 0.0324)
+chequear("p_chinstrap", 0.5605)
+chequear("p_gentoo", 0.2336)
+```
+
+```{r}
+count(penguins, species)
+```
+
+Adelie rechaza con p = 0,032. Y Adelie es la especie con más animales: 152 contra 124 y 68.
+
+Puede pesar el tamaño. Con más datos el test detecta desvíos más chicos, así que una parte de la diferencia entre especies puede venir del n y no de la forma. Con 152 contra 124 no alcanza para afirmarlo: el ejercicio 8 lo muestra limpio, con una distribución que conocemos.
+
+Lo que sí vale como regla: con 68 Chinstrap, que no rechace no prueba que sean normales.
+
+## Ejercicio 8
+
+```{r}
+set.seed(7)
+muestra_chica <- rt(40, df = 15)
+
+set.seed(7)
+muestra_grande <- rt(5000, df = 15)
+
+p_chico <- round(shapiro.test(muestra_chica)$p.value, 4)
+p_grande <- shapiro.test(muestra_grande)$p.value
+p_grande_rechaza <- p_grande < 0.001
+
+c(chico = p_chico, grande = p_grande)
+
+chequear("p_chico", 0.2864)
+chequear("p_grande_rechaza", TRUE)
+```
+
+Las dos muestras salen de la misma distribución. Con 40 datos el test no rechaza, con 5000 rechaza con un p de diez a la menos siete.
+
+Y así se ve esa distribución comparada con una normal:
+
+```{r}
+#| fig-height: 3
+curve(dnorm(x), from = -4, to = 4, ylab = "densidad", col = "grey50", lwd = 2)
+curve(dt(x, df = 15), from = -4, to = 4, add = TRUE, col = "firebrick", lwd = 2)
+legend("topright", c("normal", "t con 15 gl"),
+       col = c("grey50", "firebrick"), lwd = 2, bty = "n")
+```
+
+Las dos curvas casi se superponen. La diferencia está en las colas y es minúscula.
+
+Las dos lecciones:
+
+**Con n chico, no rechazar no prueba normalidad.** El test no tuvo potencia para detectar nada. Es el error de interpretación más común: la gente corre Shapiro sobre 25 observaciones, obtiene p = 0,4 y escribe "los datos siguen una distribución normal". No probaron nada.
+
+**Con n grande, rechazar no significa que importe.** Con 5000 observaciones vas a rechazar casi cualquier variable real, porque ninguna es exactamente normal. La pregunta de si esa desviación afecta tu análisis es otra, y el test no la contesta.
+
+Por eso el histograma y el QQ plot van primero. Muestran el tamaño de la desviación, que es lo que hay que juzgar. El test solo dice si es detectable.
+
+## Ejercicio 9
+
+```{r}
+#| fig-height: 3.5
+#| layout-ncol: 2
+g_qq <- penguins |>
+  filter(species == "Gentoo") |>
+  ggplot(aes(sample = body_mass_g)) +
+  stat_qq() + stat_qq_line() +
+  labs(title = "Solo Gentoo")
+g_qq
+
+ggplot(penguins, aes(sample = body_mass_g)) +
+  stat_qq() + stat_qq_line() +
+  labs(title = "Todas las especies")
+
+chequear_grafico("g_qq")
+```
+
+Los Gentoo siguen la recta en casi todo el rango; solo los extremos se doblan un poco hacia adentro. La tabla completa dibuja una ese, que es la firma de una mezcla de poblaciones.
+
+Cómo se leen las desviaciones típicas:
+
+| Lo que ves | Qué significa |
+|---|---|
+| Los puntos de los extremos se van para arriba a la derecha y para abajo a la izquierda | Colas más pesadas que una normal |
+| Los extremos se doblan hacia adentro: arriba de la recta a la izquierda y abajo a la derecha | Colas más livianas |
+| Curva en forma de C | Asimetría |
+| Forma de ese | Mezcla de grupos, o una variable acotada |
+| Un punto solo lejos del resto | Un valor atípico que conviene mirar fila por fila |
+
+El QQ plot da algo que el test no da: el tamaño de la desviación y en qué parte de la distribución está. Una cola pesada afecta a un test de medias mucho menos que una asimetría fuerte, y eso en un p valor no se ve.
+
+## Ejercicio 10
+
+```{r}
+set.seed(1)
+concentracion <- rlnorm(200, meanlog = 3, sdlog = 1)
+asimetria <- function(v) mean((v - mean(v))^3) / sd(v)^3
+
+asim_antes <- round(asimetria(concentracion), 4)
+asim_despues <- round(asimetria(log(concentracion)), 4)
+
+c(antes = asim_antes, despues = asim_despues)
+
+chequear("asim_antes", 2.665)
+chequear("asim_despues", 0.1948)
+```
+
+```{r}
+#| fig-height: 3
+#| layout-ncol: 2
+hist(concentracion, breaks = 30, main = "Original", xlab = "concentración")
+hist(log(concentracion), breaks = 30, main = "Log", xlab = "log(concentración)")
+```
+
+De 2,67 a 0,19. El logaritmo funciona tan bien acá porque los datos se generaron justamente como una lognormal, o sea que su logaritmo es normal por construcción. Con datos reales el resultado es menos perfecto pero la dirección es la misma.
+
+Por qué pasa tan seguido en biología: muchas variables son el resultado de efectos que se multiplican en vez de sumarse. Una concentración que se duplica cada hora, un título de anticuerpos que se mide en diluciones al medio, un tiempo de supervivencia. Cuando los efectos se multiplican, el logaritmo los convierte en una suma, y las sumas tienden a la normal.
+
+Lo que hay que recordar al reportar:
+
+```{r}
+media_aritmetica <- mean(concentracion)
+media_geometrica <- exp(mean(log(concentracion)))
+
+c(aritmetica = media_aritmetica, geometrica = media_geometrica)
+```
+
+Son dos números distintos y los dos son correctos. Si analizaste en escala logarítmica y volviste con `exp()`, lo que obtuviste es la media geométrica. Para datos asimétricos suele describir mejor al caso típico, pero hay que decir cuál se está reportando.
+
+## Las preguntas sueltas
+
+**1.** `ggsave("figura.png", g_box, width = 7, height = 5, dpi = 300)` da una imagen de 2100 por 1500 píxeles, porque las medidas están en pulgadas y se multiplican por el dpi. Siete pulgadas es el ancho de una página A4 con márgenes, y 300 dpi es lo que piden casi todas las revistas.
+
+El botón Export de RStudio guarda al tamaño de la ventana, que cambia según cómo tengas los paneles. Dos exportaciones del mismo gráfico salen distintas, y el texto queda a un tamaño impredecible.
+
+**2.** `add_p()` elige el test por defecto según el tipo de variable: Kruskal-Wallis para las continuas y chi cuadrado para las categóricas. Son elecciones razonables y no necesariamente las que vos hubieras hecho.
+
+Hay algo más serio. En la tabla 1 de un ensayo aleatorizado, el p valor **no debería estar**. La aleatorización garantiza que cualquier diferencia de base es azar, así que estás testeando una hipótesis que sabés verdadera por construcción. CONSORT lo desaconseja explícitamente y varias revistas lo rechazan. Se desarrolla en el módulo 6.
+
+**3.** `shapiro.test(rnorm(5000))` rechaza alrededor del 5 % de las veces, que es exactamente el nivel del test. Si lo corrés veinte veces con semillas distintas, una rechaza en promedio. Eso es justamente la definición de alfa.
+
+**4.** El cuarteto de Anscombe:
+
+```{r}
+#| fig-height: 3
+#| fig-width: 7
+a <- datasets::anscombe
+op <- par(mfrow = c(1, 4), mar = c(4, 4, 2, 1))
+for (i in 1:4) {
+  plot(a[[paste0("x", i)]], a[[paste0("y", i)]],
+       xlab = "x", ylab = "y", main = paste("Conjunto", i),
+       pch = 19, xlim = c(3, 20), ylim = c(2, 14))
+  abline(lm(a[[paste0("y", i)]] ~ a[[paste0("x", i)]]), col = "firebrick")
+}
+par(op)
+```
+
+```{r}
+sapply(1:4, function(i) {
+  x <- a[[paste0("x", i)]]; y <- a[[paste0("y", i)]]
+  c(media_x = mean(x), media_y = round(mean(y), 2),
+    sd_y = round(sd(y), 2), cor = round(cor(x, y), 3))
+})
+```
+
+Mismas medias, mismos desvíos, misma correlación hasta el segundo decimal, y la misma recta de regresión. Los cuatro gráficos no se parecen en nada: uno es una relación lineal razonable, otro es una curva, otro es una recta perfecta arruinada por un punto, y el cuarto ni siquiera tiene variación en x salvo por un dato.
+
+Francis Anscombe los construyó en 1973 para argumentar que los resúmenes numéricos no alcanzan. Sigue siendo el mejor argumento que hay para graficar antes de resumir.

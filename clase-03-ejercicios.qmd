@@ -1,0 +1,266 @@
+---
+title: "Clase 3. Ejercicios"
+subtitle: "Describir, graficar y evaluar normalidad"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(ggplot2)
+library(gtsummary)
+source("chequear.R")
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 1. Cuál de los dos resume mejor
+
+Estos son los sueldos mensuales de diez empleados de una empresa chica, en miles.
+
+```{r}
+sueldos <- c(1800, 1950, 2100, 2000, 1850, 2050, 1900, 2200, 1750, 48000)
+```
+
+Guardá la media en `sueldo_medio` y la mediana en `sueldo_mediano`.
+
+Antes de correr el chequeo, mirá los dos números y preguntate cuál de los dos le dirías a alguien que te pregunta "¿cuánto se gana ahí?".
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("sueldo_medio", 6560)
+chequear("sueldo_mediano", 1975)
+```
+
+Ninguno de los diez empleados gana algo parecido a la media. Un solo valor la arrastró.
+
+------------------------------------------------------------------------
+
+## Ejercicio 2. Dispersión que resiste
+
+Calculá el rango intercuartílico de la masa corporal de los pingüinos y guardalo en `iqr_masa`.
+
+La función es `IQR()`. Es la distancia entre el percentil 25 y el 75, así que un valor extremo no la mueve.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("iqr_masa", 1200)
+```
+
+Compará contra `sd(penguins$body_mass_g, na.rm = TRUE)`. Los dos miden dispersión y dan números distintos porque miden cosas distintas.
+
+------------------------------------------------------------------------
+
+## Ejercicio 3. Un gráfico desde cero
+
+Armá un histograma de la masa corporal y guardalo en un objeto llamado `g_hist`.
+
+Empezá corriendo solamente `ggplot(penguins, aes(x = body_mass_g))`, sin nada más. Mirá lo que aparece: ejes, escala, un panel vacío. Eso es lo que hace `aes()`. La geometría todavía no está.
+
+Después agregale `geom_histogram()`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_grafico("g_hist")
+```
+
+ggplot te va a avisar que eligió 30 intervalos. Cambiá `bins` a 10, después a 60, y mirá cómo cambia la forma. Esa decisión es tuya y afecta lo que vas a concluir.
+
+------------------------------------------------------------------------
+
+## Ejercicio 4. Comparar grupos
+
+Hacé un boxplot de la masa corporal por especie y guardalo en `g_box`.
+
+Las dos variables van en el `aes()`: la especie en `x` y la masa en `y`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_grafico("g_box")
+```
+
+Ahora cambiá `geom_boxplot()` por `geom_violin()` y mirá los dos. El boxplot dibuja cinco números. El violín dibuja la forma entera. Una distribución con dos modas puede tener un boxplot idéntico al de una con una sola.
+
+No se corrige, pero hacelo: agregale `geom_jitter(alpha = 0.3)` encima del boxplot para ver los puntos reales.
+
+------------------------------------------------------------------------
+
+## Ejercicio 5. Verificar la tabla 1
+
+Esta línea produce la tabla 1 completa.
+
+```{r}
+penguins |>
+  select(species, body_mass_g, flipper_length_mm, sex) |>
+  tbl_summary(by = species)
+```
+
+Una línea, y ya tenés una tabla formateada con medianas, cuartiles, porcentajes y faltantes. El problema es que gtsummary tomó media docena de decisiones sin preguntarte.
+
+Verificá una. Calculá a mano la mediana de masa corporal de los Gentoo y guardala en `mediana_gentoo`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("mediana_gentoo", 5000)
+```
+
+Si coincide con lo que dice la tabla, confirmaste que esa celda es una mediana. La tabla lo avisa en la nota al pie, `Median (Q1, Q3)`, en letra chica y fácil de pasar por alto. Leé siempre esa nota antes de copiar una tabla 1 a un trabajo.
+
+------------------------------------------------------------------------
+
+## Ejercicio 6. El test que todos corren
+
+Corré `shapiro.test()` sobre la masa corporal de todos los pingüinos. Guardá en `rechaza_completa` si el p valor es menor a 0.05.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("rechaza_completa", TRUE)
+```
+
+Rechaza. Antes de concluir nada, hacé el histograma separado por especie con `facet_wrap(~ species)` y mirá por qué.
+
+------------------------------------------------------------------------
+
+## Ejercicio 7. El mismo test, por especie
+
+Corré el test sobre cada especie por separado y guardá los p valores redondeados a cuatro decimales en `p_adelie`, `p_chinstrap` y `p_gentoo`.
+
+Acordate de sacar los `NA` antes, porque `shapiro.test()` no tiene argumento `na.rm`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("p_adelie", 0.0324)
+chequear("p_chinstrap", 0.5605)
+chequear("p_gentoo", 0.2336)
+```
+
+Fijate cuál rechazó. Ahora fijate cuántos animales tiene cada especie con `count(penguins, species)`.
+
+La que rechaza es la que más datos tiene. Con más datos el test detecta desvíos más chicos, y el ejercicio que sigue lo muestra con una distribución que conocemos.
+
+------------------------------------------------------------------------
+
+## Ejercicio 8. La misma población, dos conclusiones
+
+Acá no hay datos reales. Vamos a generar dos muestras de la **misma** distribución, una chica y una grande, y testearlas.
+
+La distribución es una t de Student con 15 grados de libertad. Si la graficás, es una campana: se diferencia de una normal solo en que las colas son un poco más gruesas.
+
+```{r}
+set.seed(7)
+muestra_chica <- rt(40, df = 15)
+
+set.seed(7)
+muestra_grande <- rt(5000, df = 15)
+```
+
+Corré el test sobre cada una. Guardá el p valor de la chica, redondeado a cuatro decimales, en `p_chico`. Y guardá en `p_grande_rechaza` si el p valor de la grande es menor a 0.001.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("p_chico", 0.2864)
+chequear("p_grande_rechaza", TRUE)
+```
+
+Misma distribución. Con 40 observaciones no rechaza, con 5000 rechaza con un p de diez a la menos siete.
+
+El test no se equivocó en ninguno de los dos casos. La t con 15 grados de libertad efectivamente no es normal, y con 5000 datos hay potencia para detectarlo. Con el n cambia la capacidad de detectarla.
+
+De ahí salen las dos conclusiones que importan. Con n chico, no rechazar no prueba nada. Con n grande, rechazar no significa que la desviación importe para lo que vas a hacer.
+
+------------------------------------------------------------------------
+
+## Ejercicio 9. El QQ plot
+
+Armá un QQ plot de la masa corporal de los Gentoo y guardalo en `g_qq`.
+
+Con ggplot son dos capas: `stat_qq()` dibuja los puntos y `stat_qq_line()` agrega la recta de referencia. La variable va en `aes(sample = ...)`, no en `x` ni en `y`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear_grafico("g_qq")
+```
+
+Hacé el mismo gráfico para la masa de todos los pingüinos juntos y compará. Uno sigue la recta mucho más que el otro.
+
+En el eje horizontal están los cuantiles que tendrían los datos si fueran normales. En el vertical, los cuantiles que tienen de verdad. Si coinciden, los puntos caen sobre la diagonal.
+
+------------------------------------------------------------------------
+
+## Ejercicio 10. Transformar
+
+Estos datos son de una variable que en bioestadística aparece todo el tiempo: concentraciones, tiempos de supervivencia, títulos de anticuerpos. Todas son positivas y asimétricas a la derecha.
+
+```{r}
+set.seed(1)
+concentracion <- rlnorm(200, meanlog = 3, sdlog = 1)
+
+asimetria <- function(v) mean((v - mean(v))^3) / sd(v)^3
+```
+
+Guardá en `asim_antes` la asimetría de `concentracion`, redondeada a cuatro decimales. Después aplicale logaritmo natural y guardá la asimetría del resultado en `asim_despues`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("asim_antes", 2.665)
+chequear("asim_despues", 0.1948)
+```
+
+Pasó de 2.67 a 0.19. Hacé los dos histogramas y miralos.
+
+Lo que no hay que olvidar: la media del logaritmo no es el logaritmo de la media. Si transformás, analizás y después volvés con `exp()`, lo que obtenés es la media geométrica, no la aritmética. Es un número legítimo y es otro número. Cuando reportes, tiene que quedar claro cuál de los dos estás dando.
+
+------------------------------------------------------------------------
+
+## Si te sobró tiempo
+
+1. Guardá tu boxplot con `ggsave("figura.png", g_box, width = 7, height = 5, dpi = 300)`. Abrí el archivo y fijate el tamaño en píxeles. ¿Cuántos esperabas?
+2. Agregale `add_p()` a la tabla del ejercicio 5. Aparece una columna de p valores. ¿Qué test eligió para la masa corporal? La respuesta está en la documentación de `tbl_summary`, y la pregunta más importante es si vos hubieras elegido ese.
+3. Corré `shapiro.test(rnorm(5000))`. Es una normal de verdad con n grande. ¿Rechaza? Repetilo cinco veces con semillas distintas y contá cuántas veces rechaza.
+4. Mirá `datasets::anscombe`. Son cuatro pares de variables con casi la misma media, desvío y correlación. Graficá los cuatro y mirá si se parecen en algo.

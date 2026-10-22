@@ -1,0 +1,355 @@
+---
+title: "Clase 4, resuelta y explicada"
+subtitle: "Inferencia y regresión"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(ggplot2)
+library(broom)
+source("../chequear.R")
+```
+
+## Ejercicio 1
+
+```{r}
+dos_especies <- penguins |> filter(species %in% c("Adelie", "Gentoo"))
+
+prueba_t <- t.test(body_mass_g ~ species, data = dos_especies)
+prueba_t
+
+ic_bajo <- round(prueba_t$conf.int[1], 2)
+ic_alto <- round(prueba_t$conf.int[2], 2)
+
+chequear("ic_bajo", -1491.18)
+chequear("ic_alto", -1259.53)
+```
+
+Los Adelie pesan entre 1260 y 1491 gramos menos que los Gentoo. El signo es negativo
+porque R puso Adelie primero, que es el primer nivel del factor.
+
+Esa es la frase que va en un informe. El p valor, que acá es ridículamente chico, no
+agrega nada que el intervalo no diga mejor: el intervalo no incluye al cero, y además
+dice cuánto.
+
+Un ejemplo para tener presente. Dos resultados posibles:
+
+```
+Diferencia: 2 g    IC 95%: [1,2 ; 2,8]     p = 0,001
+Diferencia: 400 g  IC 95%: [-40 ; 840]     p = 0,08
+```
+
+El primero es estadísticamente significativo y biológicamente irrelevante. El segundo no
+alcanza el 0,05 y es el que querés investigar con más datos. Si mirás solo el p valor,
+los leés al revés.
+
+## Ejercicio 2
+
+```{r}
+gl_welch <- round(prueba_t$parameter, 4)
+gl_welch
+
+chequear("gl_welch", 249.6426)
+```
+
+Con 151 y 123 observaciones, la prueba de Student usaría 272 grados de libertad enteros.
+Welch usa 249,64.
+
+La diferencia está en el supuesto. Student asume que las dos poblaciones tienen la misma
+varianza; Welch no, y corrige los grados de libertad para compensar.
+
+```{r}
+t.test(body_mass_g ~ species, data = dos_especies, var.equal = TRUE)$parameter
+```
+
+R usa Welch por defecto, y es la decisión correcta. La costumbre de correr primero un
+test de igualdad de varianzas para elegir el test es peor: encadenás dos decisiones y el
+error del primer paso se propaga al segundo.
+
+## Ejercicio 3
+
+```{r}
+r_pearson  <- round(cor(penguins$flipper_length_mm, penguins$body_mass_g,
+                        use = "complete.obs"), 4)
+r_spearman <- round(cor(penguins$flipper_length_mm, penguins$body_mass_g,
+                        use = "complete.obs", method = "spearman"), 4)
+
+c(pearson = r_pearson, spearman = r_spearman)
+
+chequear("r_pearson", 0.8712)
+chequear("r_spearman", 0.84)
+```
+
+Parecidas, porque la relación es bastante lineal.
+
+La pregunta suelta:
+
+```{r}
+x <- 1:100
+y <- x^2
+c(pearson = cor(x, y), spearman = cor(x, y, method = "spearman"))
+```
+
+Spearman da exactamente 1 porque `y` crece siempre que `x` crece. Pearson da 0,97 porque
+la relación es perfecta pero no es una recta.
+
+Y el caso que importa de verdad:
+
+```{r}
+x2 <- -10:10
+y2 <- x2^2
+cor(x2, y2)
+```
+
+Cero. Hay una relación perfecta y determinística, y la correlación no la ve. Es el
+recordatorio de que un coeficiente cerca de cero no significa que no haya relación.
+
+## Ejercicio 4
+
+```{r}
+modelo1 <- lm(body_mass_g ~ flipper_length_mm, data = penguins)
+summary(modelo1)
+
+pendiente1  <- round(coef(modelo1)[2], 4)
+r2_modelo1  <- round(summary(modelo1)$r.squared, 4)
+
+chequear("pendiente1", 49.6856)
+chequear("r2_modelo1", 0.759)
+```
+
+Por cada milímetro más de aleta, la masa sube 49,7 gramos en promedio.
+
+El intercepto es -5780,8 gramos, que es el peso predicho para un pingüino con aleta de
+cero milímetros. No existe, y no importa: el intercepto casi nunca tiene interpretación
+cuando el cero está fuera del rango de los datos.
+
+Cómo leer ese `summary()`, en orden:
+
+1. **Residuals.** Si la mediana está lejos de cero o los cuartiles son muy asimétricos,
+   hay algo raro.
+2. **Estimate.** El efecto. Es lo que te interesa.
+3. **Std. Error.** La precisión. Un efecto grande con error enorme no es un hallazgo.
+4. **R-squared.** Qué proporción de la variación explica el modelo.
+5. **Pr(>|t|).** Lo último.
+
+El p valor de abajo de todo, el de la F, es del modelo completo. El de cada fila es de
+ese coeficiente. Se confunden.
+
+## Ejercicio 5
+
+```{r}
+modelo2 <- lm(body_mass_g ~ flipper_length_mm + species, data = penguins)
+coef(modelo2)
+
+pendiente2 <- round(coef(modelo2)[2], 4)
+
+chequear("pendiente2", 40.7054)
+```
+
+De 49,7 a 40,7.
+
+En el primer modelo, la pendiente de la aleta cargaba con dos cosas mezcladas: el efecto
+real del tamaño de la aleta, y el hecho de que los Gentoo tienen aletas más largas y
+además son más pesados por razones que no tienen que ver con la aleta.
+
+Al poner la especie en el modelo, esa segunda parte se va a los coeficientes de especie
+y la pendiente queda con lo que le corresponde.
+
+```{r}
+#| fig-height: 3.5
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, color = species)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed",
+              aes(group = 1)) +
+  theme_minimal()
+```
+
+La línea negra punteada es el modelo 1, ignorando la especie. Las tres de color son una
+recta por especie, cada una con su pendiente: 32,8 para Adelie, 34,6 para Chinstrap y 54,6
+para Gentoo. El modelo 2 es una versión más simple de eso, tres rectas paralelas con la
+misma pendiente de 40,7. La punteada, con 49,7, es más empinada que esa pendiente común
+porque atraviesa las tres nubes en diagonal.
+
+Este es el mecanismo de la confusión, y es la razón por la que los análisis se ajustan
+por covariables.
+
+**Sobre "manteniendo lo demás constante".** Los 40,7 gramos se interpretan como el efecto
+de un milímetro de aleta dentro de una misma especie. Es una afirmación sobre el modelo:
+nadie puede cambiarle la aleta a un pingüino dejando todo lo demás igual.
+
+**Sobre la categoría de referencia.** Adelie no aparece en los coeficientes porque es la
+referencia, y lo es porque es el primer nivel del factor. Nadie la eligió por un motivo, y
+se puede cambiar:
+
+```{r}
+penguins |>
+  mutate(species = forcats::fct_relevel(species, "Gentoo")) |>
+  lm(body_mass_g ~ flipper_length_mm + species, data = _) |>
+  coef()
+```
+
+La pendiente de la aleta no cambió. Lo que cambió es contra qué se comparan las especies.
+
+## Ejercicio 6
+
+```{r}
+anova1 <- aov(body_mass_g ~ species, data = penguins)
+summary(anova1)
+
+tukey <- TukeyHSD(anova1)
+tukey$species
+
+p_chin_adelie <- round(tukey$species["Chinstrap-Adelie", "p adj"], 4)
+
+chequear("p_chin_adelie", 0.8807)
+```
+
+Chinstrap contra Adelie: 32 gramos de diferencia, p ajustado 0,88. No hay evidencia de
+que difieran.
+
+Las otras dos: más de 1300 gramos, p prácticamente cero.
+
+El ANOVA respondió "al menos uno difiere". Tukey respondió cuál, y además da intervalos,
+que es lo que lo hace más útil que una lista de p valores.
+
+**Por qué hace falta ajustar.** Con 3 grupos hay 3 comparaciones. Con 5 hay 10. Con 10
+hay 45. Si cada una se testea al 5 %, la probabilidad de al menos un falso positivo
+crece rápido:
+
+```{r}
+comparaciones <- c(1, 3, 10, 45)
+round(1 - 0.95^comparaciones, 3)
+```
+
+Con 45 comparaciones, la probabilidad de encontrar al menos un "hallazgo" que no existe
+es del 90 %.
+
+Bonferroni divide alfa por el número de comparaciones. Es simple y conservador. Tukey
+está pensado específicamente para comparar todos los pares después de un ANOVA y pierde
+menos potencia.
+
+## Ejercicio 7
+
+```{r}
+masa <- penguins$body_mass_g[!is.na(penguins$body_mass_g)]
+
+set.seed(2026)
+medianas <- replicate(2000, median(sample(masa, length(masa), replace = TRUE)))
+
+ic_boot_bajo <- quantile(medianas, 0.025)
+ic_boot_alto <- quantile(medianas, 0.975)
+
+chequear("ic_boot_bajo", 3900)
+chequear("ic_boot_alto", 4200)
+```
+
+```{r}
+#| fig-height: 3
+hist(medianas, breaks = 30, col = "grey85",
+     main = "2000 medianas de remuestreos", xlab = "mediana de la masa (g)")
+abline(v = median(masa), col = "firebrick", lwd = 3)
+```
+
+La mediana observada es 4050. El intervalo va de 3900 a 4200.
+
+La idea del bootstrap en una frase: si no sabés cómo se distribuye tu estadístico, usá
+tu muestra como si fuera la población y mirá cuánto varía al volver a muestrear de ella.
+
+El `replace = TRUE` es lo que lo hace funcionar. Sin eso, cada remuestreo es la misma
+muestra barajada y la mediana nunca cambia:
+
+```{r}
+set.seed(2026)
+sin_reposicion <- replicate(10, median(sample(masa, length(masa), replace = FALSE)))
+sin_reposicion
+```
+
+Diez valores idénticos.
+
+Sirve para cualquier estadístico, no solo la mediana: un cociente, una diferencia de
+medianas, un coeficiente raro. Donde no hay fórmula, hay bootstrap.
+
+## Las preguntas sueltas
+
+**1.**
+
+```{r}
+#| fig-height: 5
+op <- par(mfrow = c(2, 2), mar = c(4, 4, 2.5, 1))
+plot(modelo2)
+par(op)
+```
+
+Qué mira cada uno:
+
+- **Residuals vs Fitted.** Busca estructura. Si hay una curva, falta un término no lineal.
+- **Q-Q Residuals.** Normalidad de los residuos, que importa menos de lo que la gente cree.
+- **Scale-Location.** Varianza constante. Si se abre como un embudo, hay
+  heterocedasticidad.
+- **Residuals vs Leverage.** Puntos que mueven el modelo ellos solos.
+
+Acá no hay nada alarmante. Lo que se busca es estructura, no belleza.
+
+**2.**
+
+```{r}
+tidy(modelo2, conf.int = TRUE)
+glance(modelo2)
+```
+
+```{r}
+#| fig-height: 3
+tidy(modelo2, conf.int = TRUE) |>
+  filter(term != "(Intercept)") |>
+  ggplot(aes(estimate, term)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(x = "Efecto sobre la masa (g)", y = NULL) +
+  theme_minimal()
+```
+
+Un gráfico de coeficientes con sus intervalos. Imposible de hacer con la salida de texto,
+inmediato con `broom`.
+
+**3.**
+
+```{r}
+set.seed(2026)
+medias_boot <- replicate(2000, mean(sample(masa, length(masa), replace = TRUE)))
+round(quantile(medias_boot, c(0.025, 0.975)), 1)
+round(t.test(masa)$conf.int, 1)
+```
+
+Casi idénticos, y eso es el teorema central del límite funcionando. Con 342
+observaciones, la distribución de la media ya es prácticamente normal, así que la fórmula
+de la t y el bootstrap llegan al mismo lugar.
+
+Es la mejor demostración de por qué la pregunta de la clase 3 no era si los datos son
+normales.
+
+**4.**
+
+```{r}
+probar_b <- function(b) {
+  set.seed(2026)
+  m <- replicate(b, median(sample(masa, length(masa), replace = TRUE)))
+  quantile(m, c(0.025, 0.975))
+}
+sapply(c(200, 2000, 20000), probar_b)
+```
+
+Da exactamente lo mismo en los tres casos, porque la mediana de estos datos solo puede
+tomar unos pocos valores y los percentiles caen siempre en los mismos.
+
+Más repeticiones reducen el ruido del propio bootstrap, no la incertidumbre de tus datos.
+Esa está fijada por el n que tenés, y ninguna cantidad de remuestreos la va a achicar.

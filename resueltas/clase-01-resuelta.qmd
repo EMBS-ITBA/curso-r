@@ -1,0 +1,171 @@
+---
+title: "Clase 1, resuelta y explicada"
+subtitle: "Arranque: R, RStudio y proyectos"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+Cada ejercicio viene con la línea que lo resuelve y con el porqué.
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(readr)
+source("../chequear.R")
+```
+
+## Ejercicio 1
+
+```{r}
+edades <- c(23, 31, 45, 38)
+edad_media <- mean(edades)
+
+chequear("edad_media", 34.25)
+```
+
+`c()` viene de *combine*. Es la forma de armar un vector y vas a escribirla cientos de veces.
+
+## Ejercicio 2
+
+```{r}
+pesos <- c(68, 72, NA, 81, 75)
+peso_medio <- mean(pesos, na.rm = TRUE)
+
+chequear("peso_medio", 74)
+```
+
+`na.rm = TRUE` saca los faltantes antes de promediar, así que acá el promedio es sobre cuatro personas y no sobre cinco.
+
+Vale la pena detenerse en esto. Lo que acabás de hacer se llama análisis de casos completos, y supone que el dato falta por azar. Si los pesos que faltan fueran justo los de los pacientes más graves, el promedio te queda sesgado y R no tiene forma de avisarte. Por eso el argumento existe y hay que escribirlo cada vez, en lugar de que R lo aplique solo.
+
+## Ejercicio 3
+
+```{r}
+clase_mezcla <- class(c(1, 2, "tres"))
+
+chequear("clase_mezcla", "character")
+```
+
+R convirtió los números a texto. La jerarquía va `logical`, `integer`, `double`, `character`, y gana siempre el más general. No hay aviso de ningún tipo.
+
+## Ejercicio 4
+
+```{r}
+n_filas <- nrow(penguins)
+n_columnas <- ncol(penguins)
+
+chequear("n_filas", 344)
+chequear("n_columnas", 8)
+```
+
+`dim(penguins)` devuelve las dos de una, como vector.
+
+## Ejercicio 5
+
+```{r}
+clase_especie <- class(penguins$species)
+n_especies <- nlevels(penguins$species)
+
+chequear("clase_especie", "factor")
+chequear("n_especies", 3)
+```
+
+`levels(penguins$species)` te muestra cuáles son: Adelie, Chinstrap y Gentoo.
+
+Un factor guarda enteros por dentro y la tabla de etiquetas aparte. Eso tiene una consecuencia útil: si filtrás los datos y te quedás sin ningún pingüino Gentoo, el nivel sigue existiendo y aparece con un cero en `table()`. Con texto, el grupo desaparece y no te enterás.
+
+## Ejercicio 6
+
+```{r}
+masa_media <- mean(penguins$body_mass_g, na.rm = TRUE)
+
+chequear("masa_media", 4201.75438596491)
+```
+
+Hay dos pingüinos sin masa registrada. Sin `na.rm = TRUE` el resultado es `NA`.
+
+## Ejercicio 7
+
+```{r}
+pico_primero <- penguins$bill_length_mm[1]
+
+chequear("pico_primero", 39.1)
+```
+
+El `$` saca la columna, que es un vector. Los corchetes sacan un elemento de ese vector. En R el primer elemento es el 1, no el 0.
+
+## Ejercicio 8
+
+```{r}
+n_sin_sexo <- sum(is.na(penguins$sex))
+
+chequear("n_sin_sexo", 11)
+```
+
+`is.na()` devuelve un vector de `TRUE` y `FALSE`. Al sumarlo, cada `TRUE` vale 1, así que la suma cuenta los faltantes.
+
+Fijate que son once sin sexo registrado pero solo dos sin masa corporal. No todas las columnas tienen los mismos agujeros, y conviene mirar columna por columna en vez de suponer.
+
+## Ejercicio 9
+
+```{r}
+consultas <- read_csv("../datos/consultas.csv", show_col_types = FALSE)
+n_consultas <- nrow(consultas)
+
+chequear("n_consultas", 15)
+```
+
+```{r}
+clase_presion <- class(consultas$presion_sistolica)
+
+chequear("clase_presion", "character")
+```
+
+La fila `C006` tiene `N/D` en la presión. Una celda alcanzó para que `read_csv()` decidiera que la columna entera es texto, porque un vector atómico no puede mezclar tipos.
+
+La solución elegante es decirle a `read_csv()` qué cadenas significan faltante:
+
+```{r}
+consultas_bien <- read_csv("../datos/consultas.csv",
+                           na = c("", "NA", "N/D"),
+                           show_col_types = FALSE)
+class(consultas_bien$presion_sistolica)
+```
+
+Ahora sí entra como número. Esto es lo que conviene hacer siempre que conozcas los códigos de faltante de tu fuente.
+
+## Ejercicio 10
+
+```{r}
+imc_medio <- mean(consultas$imc)
+presion_media <- mean(as.numeric(consultas$presion_sistolica), na.rm = TRUE)
+
+chequear("imc_medio", 27.46)
+chequear("presion_media", 133.785714285714)
+```
+
+El `imc` ya venía como número, así que sale directo.
+
+La presión necesitó dos pasos. `as.numeric()` convierte lo que puede y deja `NA` donde no puede, y avisa con `NAs introduced by coercion`. Después `na.rm = TRUE` para promediar los catorce que quedaron.
+
+Ese aviso merece atención. El código siguió andando y devolvió un número. Si no lo leías, te llevabas un promedio de catorce consultas creyendo que era de quince. Los avisos de R suelen ser más peligrosos que los errores, justamente porque no frenan nada.
+
+Con `consultas_bien` el ejercicio es una línea:
+
+```{r}
+mean(consultas_bien$presion_sistolica, na.rm = TRUE)
+```
+
+## Las preguntas sueltas
+
+**1.** `mean(c(TRUE, FALSE, TRUE))` da `0.6666667`. Los lógicos se convierten a 1 y 0, así que el promedio de un vector lógico es la proporción de `TRUE`. Es un atajo que se usa todo el tiempo: `mean(penguins$body_mass_g > 4000, na.rm = TRUE)` te da la proporción de pingüinos que pasan los 4 kg.
+
+**2.** `as.numeric(factor(c("10", "20", "30")))` devuelve `1 2 3` cuando esperabas `10 20 30`: son los códigos internos del factor. El camino correcto es `as.numeric(as.character(f))`. Es un error silencioso clásico, y cuando pasa en datos reales rompe un análisis entero sin dar ninguna señal.
+
+**3.** El argumento es `na`. Está resuelto arriba, en el ejercicio 9.
+
+**4.** Si al vaciar el entorno y volver a correr algo falla, tu análisis dependía de un objeto que no está en el código. Hacer esto seguido es la forma más barata de descubrir que un script no es reproducible. En RStudio hay un atajo que lo hace completo: en el desplegable del botón Run, arriba del editor, Restart R and Run All Chunks.

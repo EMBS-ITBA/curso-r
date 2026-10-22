@@ -1,0 +1,243 @@
+---
+title: "Clase 1. Ejercicios"
+subtitle: "Arranque: R, RStudio y proyectos"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+## Cómo se usa este cuaderno
+
+Cada ejercicio tiene dos bloques de código. En el primero escribís tu respuesta. El segundo ya está escrito y lo corrés sin tocar nada: te dice si te dio bien.
+
+Corré este bloque antes que nada. Carga lo que hace falta.
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(readr)
+library(tibble)
+source("chequear.R")
+```
+
+Te va a aparecer un aviso que dice que palmerpenguins tapa `penguins` y `penguins_raw`. Es normal: R trae su propia tabla de pingüinos con otros nombres de columna, y este paquete la reemplaza por la que usa el curso.
+
+Si eso falló, el problema casi siempre es la ruta. Fijate que el archivo `chequear.R` esté en la misma carpeta que este cuaderno, y que hayas abierto el proyecto de RStudio en vez de abrir el `.qmd` suelto.
+
+------------------------------------------------------------------------
+
+## Ejercicio 1. Un vector y su media
+
+Cuatro pacientes de un consultorio tienen 23, 31, 45 y 38 años.
+
+Guardá esas edades en un vector llamado `edades`, y después la media en `edad_media`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("edad_media", 34.25)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 2. Cuando falta un dato
+
+Estos son los pesos en kilos de cinco personas. De la tercera no se registró el peso.
+
+```{r}
+pesos <- c(68, 72, NA, 81, 75)
+```
+
+Calculá el peso medio de los que sí tienen dato y guardalo en `peso_medio`.
+
+Si escribís `mean(pesos)` te va a dar `NA`. R te está avisando que hay un agujero, y la decisión de qué hacer con él es tuya.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("peso_medio", 74)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 3. Qué pasa si mezclás
+
+Un vector atómico guarda un solo tipo de dato. Si le metés cosas de tipos distintos, R no se queja: convierte todo al tipo más general y sigue.
+
+Antes de correr nada, pensá qué tipo va a tener `c(1, 2, "tres")`.
+
+Ahora comprobalo: guardá en `clase_mezcla` el resultado de aplicarle `class()` a ese vector.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("clase_mezcla", "character")
+```
+
+Esto es más importante de lo que parece. Si en tu planilla de Excel una sola celda de una columna numérica dice "N/D", la columna entera te va a llegar como texto.
+
+------------------------------------------------------------------------
+
+## Ejercicio 4. Mirar una tabla que recién llega
+
+El paquete `palmerpenguins` trae una tabla llamada `penguins` con medidas de pingüinos del archipiélago Palmer, en la Antártida.
+
+Lo primero que se hace con una tabla nueva es ver qué tamaño tiene. Guardá el número de filas en `n_filas` y el de columnas en `n_columnas`.
+
+Probá también `glimpse(penguins)` en la consola. No lo guardes en ninguna variable, solo miralo: es lo que vas a correr siempre que te llegue una tabla nueva.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_filas", 344)
+chequear("n_columnas", 8)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 5. Los tipos de cada columna
+
+La columna `species` guarda la especie de cada pingüino. Guardá en `clase_especie` el resultado de `class()` sobre esa columna.
+
+Después, guardá en `n_especies` cuántas especies distintas hay. Para eso sirve `nlevels()`, y conviene que entiendas por qué: un factor guarda por dentro números, y aparte guarda la lista de etiquetas que les corresponden. Esa lista son los niveles.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("clase_especie", "factor")
+chequear("n_especies", 3)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 6. La media con agujeros
+
+Calculá la masa corporal media de todos los pingüinos y guardala en `masa_media`. La columna es `body_mass_g` y está en gramos.
+
+Ojo que esta columna tiene datos faltantes.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("masa_media", 4201.75438596491)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 7. Un valor suelto
+
+Guardá en `pico_primero` el largo del pico del primer pingüino de la tabla. La columna es `bill_length_mm`.
+
+Vas a necesitar dos cosas: el `$` para sacar la columna, y los corchetes para sacar un elemento de un vector.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("pico_primero", 39.1)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 8. Contar lo que falta
+
+¿De cuántos pingüinos no se registró el sexo? Guardalo en `n_sin_sexo`.
+
+Para comparar contra `NA` no sirve `==`, porque `NA == NA` devuelve `NA`. La función que necesitás es `is.na()`, que devuelve un vector de `TRUE` y `FALSE`. Y sumar un vector de `TRUE` y `FALSE` cuenta los `TRUE`, porque `TRUE` vale 1.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_sin_sexo", 11)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 9. Traer tus propios datos
+
+En la carpeta `datos/` hay un archivo llamado `consultas.csv` con quince consultas de un consultorio.
+
+Importalo con `read_csv()` y guardalo en `consultas`. Después guardá la cantidad de filas en `n_consultas`.
+
+Mirá el mensaje que imprime `read_csv()` al cargar. Ahí te está diciendo qué tipo le asignó a cada columna, y una de esas asignaciones te va a sorprender.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_consultas", 15)
+```
+
+Ahora guardá en `clase_presion` el resultado de `class()` sobre la columna `presion_sistolica`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("clase_presion", "character")
+```
+
+Si esperabas un número, mirá la fila `C006` en el archivo. Una sola celda alcanzó.
+
+------------------------------------------------------------------------
+
+## Ejercicio 10. Todo junto
+
+Dos cuentas sobre `consultas`.
+
+Primero la fácil: el índice de masa corporal medio, en `imc_medio`.
+
+Después la que tiene truco: la presión sistólica media, en `presion_media`. La columna es texto, así que vas a tener que convertirla con `as.numeric()` antes de promediar. Cuando lo hagas, R te va a tirar un aviso que dice `NAs introduced by coercion`, o `NAs introducidos por coerción` si tu R está en castellano.
+
+Ese aviso no es un error y el código sigue andando. Está avisándote que una celda no se pudo convertir a número y quedó como `NA`. Es exactamente lo que querías que pasara, pero fijate que tuviste que enterarte leyendo un aviso que es fácil pasar por alto.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("imc_medio", 27.46)
+chequear("presion_media", 133.785714285714)
+```
+
+------------------------------------------------------------------------
+
+## Si te sobró tiempo
+
+Nada de esto se corrige. Son las preguntas que te van a servir cuando uses tus propios datos.
+
+1. ¿Qué devuelve `mean(c(TRUE, FALSE, TRUE))`? Pensalo antes de correrlo.
+2. Corré `as.numeric(factor(c("10", "20", "30")))`. El resultado no es el que esperás. ¿Por qué?
+3. Abrí la ayuda de `read_csv` con `?read_csv` y buscá el argumento `na`. ¿Cómo lo usarías para que `consultas.csv` cargue bien de una, sin tener que convertir nada después?
+4. En el panel Environment, borrá todo con la escobita y volvé a correr el cuaderno de arriba abajo. Si algo falla, es que dependía de un objeto que creaste a mano y no quedó en el código. Eso es lo que hace que un análisis no se pueda reproducir.

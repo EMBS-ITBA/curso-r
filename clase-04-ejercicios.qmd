@@ -1,0 +1,227 @@
+---
+title: "Clase 4. Ejercicios"
+subtitle: "Inferencia y regresión"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(ggplot2)
+library(broom)
+source("chequear.R")
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 1. El intervalo antes que el p
+
+Compará la masa corporal de Adelie contra Gentoo con `t.test()`.
+
+```{r}
+dos_especies <- penguins |> filter(species %in% c("Adelie", "Gentoo"))
+```
+
+Guardá el objeto completo en `prueba_t`, y después los dos extremos del intervalo de
+confianza, redondeados a dos decimales, en `ic_bajo` e `ic_alto`.
+
+El intervalo está en `prueba_t$conf.int`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("ic_bajo", -1491.18)
+chequear("ic_alto", -1259.53)
+```
+
+El intervalo te dice cuánto. El p valor te dice si. Mirá los dos extremos y preguntate
+si esa diferencia, en gramos, es grande para un pingüino.
+
+------------------------------------------------------------------------
+
+## Ejercicio 2. Los grados de libertad no son enteros
+
+Guardá en `gl_welch` los grados de libertad del test que acabás de correr, redondeados
+a cuatro decimales. Están en `prueba_t$parameter`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("gl_welch", 249.6426)
+```
+
+Un número con decimales donde esperabas un entero. R usó la prueba de Welch, que no
+asume que las dos varianzas sean iguales, y por eso los grados de libertad son
+aproximados.
+
+Es el comportamiento por defecto y está bien que lo sea. Correr un test de igualdad de
+varianzas para decidir qué prueba usar es peor que usar Welch directamente.
+
+------------------------------------------------------------------------
+
+## Ejercicio 3. Dos correlaciones
+
+Calculá la correlación entre el largo de la aleta y la masa corporal, de las dos formas,
+redondeadas a cuatro decimales. Guardalas en `r_pearson` y `r_spearman`.
+
+Vas a necesitar `use = "complete.obs"` porque hay faltantes.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("r_pearson", 0.8712)
+chequear("r_spearman", 0.84)
+```
+
+Pearson mide relación lineal. Spearman mide si una crece cuando la otra crece, sin pedir
+que sea en línea recta.
+
+Para pensar, no se corrige: si armás un vector `x` de 1 a 100 y otro `y <- x^2`, ¿cuánto
+da cada una? Probalo.
+
+------------------------------------------------------------------------
+
+## Ejercicio 4. Una regresión simple
+
+Ajustá un modelo que prediga la masa corporal a partir del largo de la aleta. Guardalo
+en `modelo1`.
+
+Después guardá la pendiente en `pendiente1` y el R² en `r2_modelo1`, los dos redondeados
+a cuatro decimales.
+
+La pendiente es el segundo elemento de `coef(modelo1)`. El R² está en
+`summary(modelo1)$r.squared`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("pendiente1", 49.6856)
+chequear("r2_modelo1", 0.759)
+```
+
+Ahora decilo en voz alta con unidades: por cada milímetro más de aleta, la masa sube
+49,7 gramos en promedio.
+
+Si no podés decirlo con unidades, no entendiste el coeficiente.
+
+------------------------------------------------------------------------
+
+## Ejercicio 5. Qué pasa al agregar la especie
+
+Ajustá un segundo modelo con la aleta **y** la especie. Guardalo en `modelo2` y la
+pendiente de la aleta en `pendiente2`, redondeada a cuatro decimales.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("pendiente2", 40.7054)
+```
+
+La pendiente pasó de 49,7 a 40,7. Casi nueve gramos menos por milímetro.
+
+Nada cambió en los datos. Lo único que cambió es qué otra cosa está en el modelo.
+
+Esto se llama confusión, y es el concepto más importante de la clase. Parte de lo que el
+primer modelo le atribuía a la aleta en realidad venía de la especie: los Gentoo tienen
+aletas más largas **y** son más pesados por otros motivos.
+
+Mirá los coeficientes completos con `coef(modelo2)` y fijate que Adelie no aparece. Es la
+categoría de referencia, porque es el primer nivel del factor: `levels(penguins$species)`.
+
+------------------------------------------------------------------------
+
+## Ejercicio 6. Tres grupos
+
+Corré un ANOVA de la masa corporal según la especie y guardalo en `anova1`. Después
+aplicale `TukeyHSD()` y guardá en `p_chin_adelie` el p ajustado de la comparación entre
+Chinstrap y Adelie, redondeado a cuatro decimales.
+
+El resultado de `TukeyHSD()` es una lista. La tabla está en el elemento `species`, y la
+columna que buscás se llama `p adj`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("p_chin_adelie", 0.8807)
+```
+
+Las otras dos comparaciones dan prácticamente cero. Mirá las tres juntas y después volvé
+al histograma por especie de la clase pasada: Adelie y Chinstrap pesan casi lo mismo, y
+los Gentoo están en otra liga.
+
+El ANOVA te dijo que al menos un grupo difiere. Tukey te dice cuál.
+
+------------------------------------------------------------------------
+
+## Ejercicio 7. Bootstrap
+
+La mediana no tiene una fórmula cómoda para el intervalo de confianza. El bootstrap la
+resuelve sin fórmula: remuestreás tu propia muestra miles de veces y mirás cuánto varía.
+
+```{r}
+masa <- penguins$body_mass_g[!is.na(penguins$body_mass_g)]
+```
+
+Completá esto. Tiene que remuestrear `masa` con reposición, del mismo tamaño que el
+original, y calcular la mediana de cada remuestreo.
+
+```{r}
+set.seed(2026)
+# medianas <- replicate(2000, ...)
+
+```
+
+Después guardá los percentiles 2,5 y 97,5 en `ic_boot_bajo` e `ic_boot_alto`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("ic_boot_bajo", 3900)
+chequear("ic_boot_alto", 4200)
+```
+
+Si te dio otra cosa, lo más probable es que te hayas olvidado `replace = TRUE`. Sin eso
+no estás remuestreando: estás barajando la misma muestra, y la mediana no cambia nunca.
+
+La semilla importa. Sin `set.seed(2026)` vas a obtener un intervalo parecido pero no
+idéntico, y el chequeo va a fallar.
+
+------------------------------------------------------------------------
+
+## Si te sobró tiempo
+
+1. Corré `plot(modelo2)`. Son cuatro gráficos. El primero busca estructura en los
+   residuos y el segundo es un QQ plot de los residuos. ¿Ves algo raro?
+2. `broom::tidy(modelo2)` y `broom::glance(modelo2)`. Convierten la salida de texto en
+   tablas. Probá graficar los coeficientes con sus intervalos.
+3. Compará el intervalo bootstrap de la **media** contra el que da `t.test(masa)`. Con
+   342 observaciones deberían parecerse bastante. ¿Por qué?
+4. Volvé a correr el bootstrap con 200 repeticiones en vez de 2000. ¿Cuánto cambia el
+   intervalo? ¿Y con 20000?

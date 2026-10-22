@@ -1,0 +1,342 @@
+---
+title: "Clase 5. Ejercicios"
+subtitle: "Transversales, cohortes y supervivencia"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(epitools)
+library(survival)
+library(survminer)
+source("chequear.R")
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 1. Una cohorte en una tabla
+
+Se siguió a 400 personas durante un año. De las 120 expuestas, 36 tuvieron el evento. De
+las 280 no expuestas, lo tuvieron 42.
+
+```{r}
+cohorte <- matrix(c(36, 84,
+                    42, 238),
+                  nrow = 2, byrow = TRUE,
+                  dimnames = list(exposicion = c("expuesto", "no expuesto"),
+                                  evento     = c("si", "no")))
+cohorte
+```
+
+Calculá el riesgo en cada grupo y guardalos en `riesgo_exp` y `riesgo_noexp`, redondeados
+a cuatro decimales.
+
+Fijate bien en qué celda está cada cosa antes de dividir. Es el error más común de toda
+la clase, y lo peor es que el número que sale igual parece razonable.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("riesgo_exp", 0.3)
+chequear("riesgo_noexp", 0.15)
+```
+
+------------------------------------------------------------------------
+
+## Ejercicio 2. El intervalo de una proporción
+
+El riesgo en los expuestos es 36 sobre 120. Ese 0,30 es una estimación y tiene
+incertidumbre.
+
+Guardá los dos extremos del intervalo de confianza en `prop_ic_bajo` y `prop_ic_alto`,
+redondeados a cuatro decimales. Usá `binom.test()`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("prop_ic_bajo", 0.2198)
+chequear("prop_ic_alto", 0.3904)
+```
+
+El intervalo va de 22 % a 39 %. Con 120 personas, eso es toda la precisión que tenés.
+
+------------------------------------------------------------------------
+
+## Ejercicio 3. Las tres medidas
+
+Calculá, a partir de los riesgos del ejercicio 1:
+
+- el riesgo relativo, en `rr`
+- la diferencia de riesgos, en `dif_riesgos`
+- el odds ratio, en `or`, redondeado a cuatro decimales
+
+El odds ratio es el producto de la diagonal dividido el producto de la antidiagonal.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("rr", 2)
+chequear("dif_riesgos", 0.15)
+chequear("or", 2.4286)
+```
+
+El riesgo relativo da exactamente 2: los expuestos tienen el doble de riesgo.
+
+El odds ratio da 2,43 sobre los mismos datos. **Las cuentas están bien.** El odds
+ratio siempre se aleja del 1 más que el riesgo relativo, y la diferencia crece cuando el
+evento es frecuente. Acá el evento ocurre en el 30 % y el 15 %, que es muchísimo.
+
+Si el evento fuera raro, digamos 3 % y 1,5 %, los dos números casi coincidirían. Probalo.
+
+------------------------------------------------------------------------
+
+## Ejercicio 4. Con intervalo
+
+Sacá el riesgo relativo con su intervalo de confianza usando `riskratio()` de epitools.
+
+El paquete espera la tabla con los no expuestos primero y el "no evento" primero, que es
+el orden inverso al nuestro en las dos dimensiones. El argumento `rev = "both"` lo
+acomoda.
+
+Guardá el extremo inferior del intervalo en `rr_ic_bajo`, redondeado a cuatro decimales.
+
+El resultado está en `$measure`, segunda fila, columna `lower`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("rr_ic_bajo", 1.3535)
+```
+
+El intervalo va de 1,35 a 2,96. No incluye al 1, así que hay asociación. Y es ancho: con
+estos datos, el riesgo podría estar multiplicado por 1,35 o por casi 3.
+
+------------------------------------------------------------------------
+
+## Ejercicio 5. Chi cuadrado y Fisher
+
+Corré `chisq.test()` sobre la tabla y guardá el p valor en `p_chi`, redondeado a cinco
+decimales.
+
+Después corrélo con `correct = FALSE` y guardá ese p en `p_chi_sin`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("p_chi", 0.00086)
+chequear("p_chi_sin", 0.00052)
+```
+
+R aplica por defecto la corrección de continuidad de Yates en tablas 2x2, y eso cambia el
+resultado: el estadístico pasa de 12,04 a 11,10.
+
+Corré también `fisher.test(cohorte)` y compará. Con 400 observaciones los tres dan
+prácticamente lo mismo. La diferencia aparece con muestras chicas.
+
+------------------------------------------------------------------------
+
+## Ejercicio 6. Logística sin ajustar
+
+Volvemos a los pingüinos. La pregunta: ¿la masa corporal predice el sexo?
+
+```{r}
+pinguinos <- penguins |> filter(!is.na(sex), !is.na(body_mass_g))
+```
+
+Ajustá una regresión logística de `sex` sobre `body_mass_g` y guardala en `log1`.
+
+Después guardá en `or_100g` el odds ratio **por cada 100 gramos**, redondeado a cuatro
+decimales.
+
+Ojo con esto: el coeficiente está en log-odds por gramo. Para pasarlo a odds ratio por
+100 gramos hay que multiplicar el coeficiente por 100 **y recién después** exponenciar.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("or_100g", 1.132)
+```
+
+Probá también `exp(coef(log1)[2])` a secas. Da 1,0012, que parece un efecto nulo y no lo
+es. La unidad del coeficiente la elegís vos, y elegir mal hace que un hallazgo real
+parezca ruido.
+
+------------------------------------------------------------------------
+
+## Ejercicio 7. Logística ajustada
+
+Ajustá el mismo modelo agregando la especie. Guardalo en `log2` y el odds ratio por 100
+gramos en `or_100g_aj`, redondeado a cuatro decimales.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("or_100g_aj", 2.0903)
+```
+
+De 1,13 a 2,09. El efecto casi se duplicó al ajustar.
+
+En la clase 4 viste que la pendiente **bajaba** al agregar la especie. Acá **sube**. Las
+dos son confusión, y la moraleja es la misma: el ajuste puede mover el efecto en
+cualquier dirección, y qué variables entran al modelo es una decisión tuya, que se toma
+con criterio.
+
+Lo que pasa acá: los Gentoo son mucho más pesados que las otras especies, y eso tapaba la
+relación entre masa y sexo que existe dentro de cada especie.
+
+------------------------------------------------------------------------
+
+## Ejercicio 8. Predecir una probabilidad
+
+Los niveles de `sex` son `female` y `male`, en ese orden. R modela la probabilidad del
+**segundo** nivel, así que este modelo predice P(macho).
+
+Usá `log2` para predecir la probabilidad de que un Gentoo de 5500 gramos sea macho.
+
+```{r}
+nuevo <- data.frame(body_mass_g = 5500,
+                    species = factor("Gentoo", levels = levels(pinguinos$species)))
+```
+
+Guardá la probabilidad en `prob_gentoo`, redondeada a cuatro decimales.
+
+Si te da un número negativo o mayor a 1, te olvidaste `type = "response"` y estás mirando
+un logit.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("prob_gentoo", 0.9623)
+```
+
+Probá también con 5000 y con 6000 gramos. Da 0,39 y 0,999. Entre esos dos valores la
+probabilidad pasa de "probablemente hembra" a "casi seguro macho" en mil gramos, y esa no
+linealidad es justamente lo que `lm()` no podría representar.
+
+------------------------------------------------------------------------
+
+## Ejercicio 9. Censura
+
+Los datos `lung` del paquete survival son 228 pacientes con cáncer de pulmón avanzado.
+`time` son días de seguimiento y `status` vale 1 si el paciente fue censurado y 2 si
+murió.
+
+Guardá en `n_eventos` cuántos murieron y en `n_censurados` cuántos no.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("n_eventos", 165)
+chequear("n_censurados", 63)
+```
+
+Esos 63 tienen información. De cada uno sabés que siguió vivo hasta cierto día, y esa es
+información real. Borrarlos te dejaría solo con los que murieron, o sea con los que
+peor les fue.
+
+------------------------------------------------------------------------
+
+## Ejercicio 10. Kaplan-Meier
+
+Ajustá una curva de supervivencia por sexo y guardala en `km`. En estos datos `sex` vale
+1 para hombres y 2 para mujeres.
+
+Después guardá las medianas de supervivencia en `mediana_h` y `mediana_m`.
+
+La mediana está en `summary(km)$table`, en la columna `median`.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("mediana_h", 270)
+chequear("mediana_m", 426)
+```
+
+Graficala:
+
+```{r}
+#| eval: false
+ggsurvplot(km, data = lung, risk.table = TRUE, pval = TRUE,
+           legend.labs = c("Hombres", "Mujeres"))
+```
+
+Te va a aparecer un aviso, `Ignoring unknown labels`. Sale de survminer con la versión nueva de ggplot2, y el gráfico se dibuja completo igual.
+
+La tabla de sujetos en riesgo que aparece abajo es la que da contexto. Hacia el final de la
+curva quedan pocos pacientes, y ahí los escalones son grandes pero no significan nada.
+Sin esa tabla, el lector no puede saberlo.
+
+------------------------------------------------------------------------
+
+## Ejercicio 11. Comparar las curvas
+
+Corré la prueba de log-rank con `survdiff()` y guardá el estadístico chi cuadrado en
+`logrank_chi`, redondeado a cuatro decimales.
+
+Está en el elemento `$chisq` del resultado.
+
+```{r}
+# Tu respuesta:
+
+```
+
+```{r}
+chequear("logrank_chi", 10.3267)
+```
+
+Con 1 grado de libertad, eso da p = 0,0013.
+
+El log-rank compara las curvas **enteras**, no un punto. Por eso no sirve para contestar
+"¿hay diferencia a los 2 años?", que es otra pregunta y necesita otra herramienta.
+
+------------------------------------------------------------------------
+
+## Si te sobró tiempo
+
+1. Repetí el ejercicio 3 con un evento raro: 3 de 100 expuestos y 15 de 1000 no
+   expuestos. El RR sigue dando 2. ¿Cuánto da el OR ahora?
+2. Armá la tabla del ejercicio 1 con `table()` a partir de un data frame, en vez de con
+   `matrix()`. ¿En qué orden te quedaron las celdas? ¿El RR te da lo mismo?
+3. En el modelo `log2`, ¿cuál es la categoría de referencia de especie? ¿Cómo la
+   cambiarías a Gentoo?
+4. Graficá la curva de Kaplan-Meier sin la tabla de riesgo y con ella. Mirá el tramo
+   final de la curva en las dos versiones.
+5. Buscá qué es la regresión de Cox. Es lo que sigue después de esta clase, y hace con
+   supervivencia lo que la logística hace con un desenlace binario.

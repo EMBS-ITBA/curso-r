@@ -1,0 +1,321 @@
+---
+title: "Clase 2, resuelta y explicada"
+subtitle: "Datos ordenados y manipulación"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  error: true
+---
+
+```{r}
+#| label: setup
+library(palmerpenguins)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(janitor)
+library(lubridate)
+library(stringr)
+source("../chequear.R")
+```
+
+## Ejercicio 1
+
+```{r}
+n_gentoo <- penguins |> filter(species == "Gentoo") |> nrow()
+
+chequear("n_gentoo", 124)
+```
+
+Adentro de `filter()` la columna se nombra suelta: `species`, no `penguins$species`. Los verbos de dplyr ya saben en qué tabla están mirando.
+
+## Ejercicio 2
+
+```{r}
+n_adelie_pesados <- penguins |>
+  filter(species == "Adelie", body_mass_g > 4000) |>
+  nrow()
+
+chequear("n_adelie_pesados", 35)
+```
+
+La coma entre condiciones es "y". Un detalle que importa: las filas con `NA` en `body_mass_g` no entran, porque `NA > 4000` da `NA` y `filter()` se queda solo con los `TRUE`. Si querés conservarlas hay que pedirlo con `is.na()`.
+
+## Ejercicio 3
+
+```{r}
+pico_max <- penguins |>
+  arrange(desc(bill_length_mm)) |>
+  slice(1) |>
+  pull(bill_length_mm)
+
+chequear("pico_max", 59.6)
+```
+
+El otro camino es más corto pero tiene una trampa:
+
+```{r}
+max(penguins$bill_length_mm, na.rm = TRUE)
+```
+
+Sin `na.rm = TRUE` eso devuelve `NA`. En cambio `arrange()` funciona igual porque manda los faltantes al final, incluso con `desc()`.
+
+## Ejercicio 4
+
+```{r}
+ratio_medio <- penguins |>
+  mutate(ratio = body_mass_g / flipper_length_mm) |>
+  pull(ratio) |>
+  mean(na.rm = TRUE)
+
+chequear("ratio_medio", 20.7770051388935)
+```
+
+Si después de esto imprimís `penguins`, la columna `ratio` no está. `mutate()` devuelve una tabla nueva y no toca la original. Para conservarla hay que asignar: `penguins2 <- penguins |> mutate(...)`.
+
+Es la confusión más común de la clase y conviene tropezarse con ella una vez.
+
+## Ejercicio 5
+
+```{r}
+por_especie <- penguins |>
+  group_by(species) |>
+  summarise(masa_media = mean(body_mass_g, na.rm = TRUE),
+            n = n())
+por_especie
+
+masa_gentoo <- por_especie |>
+  filter(species == "Gentoo") |>
+  pull(masa_media)
+
+chequear("masa_gentoo", 5076.0162601626)
+```
+
+Los Gentoo pesan unos 1350 gramos más que las otras dos especies, que entre sí casi no se diferencian. Ese `n` que agregamos dice que la media de Chinstrap sale de 68 animales y la de Adelie de 152. No es lo mismo.
+
+## Ejercicio 6
+
+```{r}
+n_biscoe <- penguins |>
+  count(island) |>
+  filter(island == "Biscoe") |>
+  pull(n)
+
+chequear("n_biscoe", 168)
+```
+
+`count(island)` es exactamente `group_by(island) |> summarise(n = n())`. Se usa tanto que le hicieron atajo.
+
+## Ejercicio 7
+
+```{r}
+visitas <- tibble(
+  paciente = c("P1", "P2", "P3"),
+  peso_v1  = c(72, 68, 81),
+  peso_v2  = c(71, 69, 79),
+  peso_v3  = c(70, 70, 78)
+)
+
+visitas_largo <- visitas |>
+  pivot_longer(cols = starts_with("peso_"),
+               names_to = "visita",
+               values_to = "peso")
+visitas_largo
+
+n_filas_largo <- nrow(visitas_largo)
+
+chequear("n_filas_largo", 9)
+```
+
+Tres pacientes por tres visitas dan nueve filas. Cada fila es ahora una observación: un paciente en un momento.
+
+`names_to` es el nombre de la columna nueva que guarda de dónde venía el valor. `values_to` es el nombre de la que guarda el valor. Si no los nombrás, quedan `name` y `value`.
+
+Para dejarlo realmente usable conviene sacar el prefijo:
+
+```{r}
+visitas |>
+  pivot_longer(starts_with("peso_"),
+               names_to = "visita",
+               names_prefix = "peso_v",
+               values_to = "peso")
+```
+
+## Ejercicio 8
+
+```{r}
+pacientes <- tibble(id = c("P1", "P2", "P3", "P4"), edad = c(54, 61, 47, 73))
+labs      <- tibble(id = c("P1", "P2", "P5"), glucemia = c(98, 112, 105))
+
+con_labs <- pacientes |> left_join(labs, by = "id")
+con_labs
+
+n_sin_lab <- sum(is.na(con_labs$glucemia))
+n_anti <- pacientes |> anti_join(labs, by = "id") |> nrow()
+
+chequear("n_sin_lab", 2)
+chequear("n_anti", 2)
+```
+
+P5 desapareció. Tiene un resultado de laboratorio pero no está en la tabla de pacientes, y `left_join()` conserva solo las filas de la izquierda.
+
+Eso puede ser correcto o puede ser una bomba. Si P5 es un paciente real que falta en el padrón, lo acabás de borrar del análisis sin que nada te avise. El `anti_join()` en la otra dirección lo encuentra:
+
+```{r}
+labs |> anti_join(pacientes, by = "id")
+```
+
+La costumbre que conviene agarrar es hacer los dos `anti_join()` después de cada unión, y contar filas antes y después. Si el número creció, hay claves duplicadas del otro lado.
+
+## Ejercicio 9
+
+```{r}
+cruda <- read_csv("../datos/cohorte-sucia.csv", show_col_types = FALSE)
+names(cruda)
+
+limpia <- cruda |> clean_names()
+names(limpia)
+
+nombre_tercero <- names(limpia)[3]
+
+chequear("nombre_tercero", "edad")
+```
+
+`clean_names()` pasó todo a minúscula, cambió espacios por guiones bajos y sacó tildes y paréntesis. En el archivo original la columna de edad se llamaba `"Edad "`, con un espacio al final, pero ese ya lo había sacado `read_csv()`, que recorta los espacios de los nombres al leer.
+
+Mirá cómo quedó la glucemia: `glucemia_mg_d_l`. La `dL` se partió en `d_l` porque janitor separa en los cambios de mayúscula. No está mal, pero es feo y demuestra que hay que revisar lo que devuelve en vez de confiar a ciegas. Se arregla con `rename(glucemia = glucemia_mg_d_l)`.
+
+## Ejercicio 10
+
+```{r}
+limpia <- limpia |>
+  mutate(sexo_ok = case_when(
+    str_to_lower(str_sub(sexo, 1, 1)) == "f" ~ "femenino",
+    str_to_lower(str_sub(sexo, 1, 1)) == "m" ~ "masculino",
+    .default = NA_character_
+  ))
+
+table(limpia$sexo_ok, useNA = "ifany")
+
+n_femenino <- sum(limpia$sexo_ok == "femenino", na.rm = TRUE)
+
+chequear("n_femenino", 15)
+```
+
+Quince y quince, sin faltantes. Si tu `case_when()` hubiera dejado algún caso afuera, aparecería acá como `NA`.
+
+La estrategia de mirar la primera letra funciona porque todas las variantes empiezan con f o con m. Con otras categorías no se puede, y ahí hay que enumerar:
+
+```{r}
+#| eval: false
+case_when(
+  sexo %in% c("F", "f", "Fem", "Femenino", "femenino") ~ "femenino",
+  sexo %in% c("M", "m", "Masc", "Masculino", "masculino") ~ "masculino",
+  .default = NA_character_
+)
+```
+
+Es más largo y es más seguro, porque si aparece una variante nueva que no enumeraste, queda en `NA` y la ves. La versión de la primera letra se la tragaría en silencio si alguien escribiera "Mujer".
+
+## Ejercicio 11
+
+```{r}
+limpia <- limpia |>
+  mutate(fecha = parse_date_time(fecha_de_ingreso, orders = c("ymd", "dmy")))
+
+n_fechas_na <- sum(is.na(limpia$fecha))
+
+chequear("n_fechas_na", 1)
+```
+
+La que falla es la fila P013, que dice `sin dato`. Las otras tres formas se resolvieron con dos órdenes: `ymd` agarra el formato ISO y `dmy` agarra tanto las barras como los guiones.
+
+Un aviso serio: el orden en que los pasás importa. Si una fecha es `03/04/2026`, `dmy` la lee como 3 de abril y `mdy` como 4 de marzo, y las dos son válidas. Por eso en este dataset usé días mayores a 12 en las fechas con barra, para que no haya ambigüedad. En datos reales no tenés esa suerte y hay que averiguar de dónde vino el archivo.
+
+## Ejercicio 12
+
+```{r}
+n_ids_repetidos <- sum(duplicated(limpia$id_paciente))
+
+get_dupes(limpia, id_paciente)
+
+chequear("n_ids_repetidos", 2)
+```
+
+Los dos repetidos son P009 y P014, y son problemas distintos.
+
+P009 aparece dos veces con todos los campos idénticos. Eso es un error de carga: alguien pegó la fila dos veces.
+
+P014 aparece dos veces con fechas distintas, el 9 y el 20 de marzo, y con presiones distintas. Eso es un paciente que volvió a consulta. Borrarlo sería perder un dato real.
+
+Si hubieras corrido `distinct()` sobre la tabla entera, P009 se arreglaba solo y P014 quedaba, que es lo correcto:
+
+```{r}
+nrow(limpia)
+nrow(distinct(limpia))
+```
+
+Pero si hubieras corrido `distinct(limpia, id_paciente, .keep_all = TRUE)` perdías la segunda consulta de P014. La diferencia entre esas dos líneas es un dato clínico.
+
+## Ejercicio 13
+
+```{r}
+n_edades_malas <- limpia |>
+  filter(edad < 18 | edad > 110) |>
+  nrow()
+
+limpia |> filter(edad < 18 | edad > 110) |> select(id_paciente, edad)
+
+chequear("n_edades_malas", 3)
+```
+
+Tres filas, dos problemas. P009 tiene 198 años y aparece dos veces porque es la fila duplicada. P016 tiene 0, que probablemente sea un campo que quedó vacío y alguien completó con cero.
+
+Esos dos casos se tratan distinto. El 198 es casi seguro un 98 con un dedo de más, y se puede corregir o marcar como faltante. El 0 no se puede adivinar: no sabés si era 60, 70 o un dato que nunca existió.
+
+Lo que no se hace nunca es borrarlos en silencio y seguir. Si los sacás, el método tiene que decirlo y el `n` del análisis tiene que bajar.
+
+## Las preguntas sueltas
+
+**1.** La cadena entera se puede, y queda así:
+
+```{r}
+todo_junto <- read_csv("../datos/cohorte-sucia.csv",
+                       na = c("", "NA", "N/D"), show_col_types = FALSE) |>
+  clean_names() |>
+  rename(glucemia = glucemia_mg_d_l) |>
+  mutate(
+    sexo_ok = case_when(
+      str_to_lower(str_sub(sexo, 1, 1)) == "f" ~ "femenino",
+      str_to_lower(str_sub(sexo, 1, 1)) == "m" ~ "masculino",
+      .default = NA_character_),
+    grupo_ok = str_to_lower(grupo),
+    fecha = parse_date_time(fecha_de_ingreso, orders = c("ymd", "dmy")),
+    edad = if_else(edad < 18 | edad > 110, NA_real_, edad)
+  ) |>
+  distinct()
+
+glimpse(todo_junto)
+```
+
+Catorce líneas para arreglar todo. Se lee mejor que en pasos sueltos porque cada línea es una transformación con nombre, y porque no quedan objetos intermedios dando vueltas en el entorno.
+
+**2.** Está resuelto arriba: `na = c("", "NA", "N/D")` en el `read_csv()`.
+
+**3.**
+
+```{r}
+todo_junto |>
+  group_by(grupo_ok) |>
+  summarise(presion_media = mean(presion_sistolica, na.rm = TRUE),
+            n = n(),
+            sin_dato = sum(is.na(presion_sistolica)))
+```
+
+Reportar el `n` y los faltantes al lado de cada media es lo que permite que alguien juzgue si el número significa algo.
+
+**4.** `filter(limpia, presion_sistolica == NA)` no devuelve nada porque `NA == NA` da `NA`, y `filter()` conserva solamente las filas donde la condición es `TRUE`. La forma correcta es `filter(limpia, is.na(presion_sistolica))`, que devuelve la fila de P006.
+
+Es el mismo tema de la clase 1 desde otro ángulo: `NA` significa "no sé", y dos cosas que no sabés no son necesariamente iguales.
